@@ -1,0 +1,50 @@
+[tool.poetry]
+name = "spacy-partial-tagger"
+version = "0.4.0"
+description = ""
+authors = ["yasufumi <yasufumi.taniguchi@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+spacy = "^3.2.4"
+thinc = "^8.0.15"
+transformers = "4.17"
+torch = "^1.11.0"
+partial-tagger = {path = "partial-tagger"}
+allennlp = "^2.9.2"
+
+[tool.poetry.dev-dependencies]
+black = "^22.3.0"
+pytest = "^7.1.1"
+isort = "^5.10.1"
+flake8 = "^4.0.1"
+mypy = "^0.942"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+ignore_missing_imports = true
+disallow_untyped_defs = true
+show_error_codes = true
+
+[tool.isort]
+profile = "black"
+include_trailing_comma = true
+multi_line_output = 3
+
+[tool.black]
+exclude = '''
+/(
+    .eggs
+  | .git
+  | .hg
+  | .pytest_cache
+  | .mypy_cache
+  | .tox
+  | .venv
+  | build
+  | dist
+)/
+'''
