@@ -11,9 +11,9 @@ from spacy.vocab import Vocab
 from thinc.config import Config
 from thinc.model import Model
 from thinc.optimizers import Optimizer
-from thinc.types import Floats3d, Ints1d
 
 from spacy_partial_tagger.loss import ExpectedEntityRatioLoss
+from spacy_partial_tagger.util import from_subword_tags, to_subword_tags
 
 
 class PartialEntityRecognizer(TrainablePipe):
@@ -63,15 +63,21 @@ class PartialEntityRecognizer(TrainablePipe):
     def unknown_index(self) -> int:
         return self.cfg["unknown_index"]
 
-    def predict(self, docs: List[Doc]) -> Ints1d:
-        _, guesses = self.model.predict(docs)
-        return guesses
+    def predict(self, docs: List[Doc]) -> tuple:
+        _, guesses, offset_mappings = self.model.predict(docs)
+        return guesses, offset_mappings
 
-    def set_annotations(self, docs: List[Doc], batch_tag_indices: Ints1d) -> None:
-        for doc, tag_indices in zip(docs, batch_tag_indices.tolist()):
-            tags = []
-            for i in range(len(doc)):
-                tags.append(self.id_to_tag[tag_indices[i]])  # type:ignore
+    def set_annotations(self, docs: List[Doc], batch_tag_indices: tuple) -> None:
+        guesses, offset_mappings = batch_tag_indices
+        for doc, tag_indices, offset_mapping in zip(
+            docs, guesses.tolist(), offset_mappings.tolist()
+        ):
+            subword_tags = []
+            for i in tag_indices:
+                if i == -1:
+                    break
+                subword_tags.append(self.id_to_tag[i])  # type:ignore
+            tags = from_subword_tags(subword_tags, offset_mapping, len(doc))
             doc.ents = biluo_tags_to_spans(doc, tags)  # type:ignore
 
     def update(
@@ -85,10 +91,10 @@ class PartialEntityRecognizer(TrainablePipe):
         if losses is None:
             losses = {}
         losses.setdefault(self.name, 0.0)
-        (log_potentials, _), backward = self.model.begin_update(
+        (log_potentials, _, offset_mapping), backward = self.model.begin_update(
             [example.x for example in examples]
         )
-        loss, grad = self.get_loss(examples, log_potentials)
+        loss, grad = self.get_loss(examples, (log_potentials, offset_mapping))
         backward(grad)
         if sgd is not None:
             self.finish_update(sgd)
@@ -124,13 +130,14 @@ class PartialEntityRecognizer(TrainablePipe):
 
         self.model.initialize(Y=id_to_tag)
 
-    def get_loss(self, examples: Iterable[Example], scores: Floats3d) -> tuple:
+    def get_loss(self, examples: Iterable[Example], scores: tuple) -> tuple:
+        potentials, offset_mappings = scores
         padding_index = self.padding_index
         unknown_index = self.unknown_index
         outside_index = self.outside_index
         loss_func = ExpectedEntityRatioLoss(padding_index, unknown_index, outside_index)
         truths = []
-        for example in examples:
+        for example, offset_mapping in zip(examples, offset_mappings.tolist()):
             tags = iob_to_biluo(
                 [
                     f"{token.ent_iob_}-{token.ent_type_}"
@@ -139,15 +146,19 @@ class PartialEntityRecognizer(TrainablePipe):
                     for token in example.y
                 ]
             )
+            subword_tags = to_subword_tags(tags, offset_mapping)
             tag_indices = [
-                self.tag_to_id[tag] if tag != "O" else unknown_index for tag in tags
+                self.tag_to_id[tag] if tag != "O" else unknown_index
+                for tag in subword_tags
             ]
             truths.append(tag_indices)
         max_length = max(map(len, truths))
-        truths = [
-            truth + [padding_index] * (max_length - len(truth)) for truth in truths
-        ]
-        return loss_func(scores, self.model.ops.asarray(truths))[::-1]  # type:ignore
+        truths = self.model.ops.asarray(  # type:ignore
+            [
+                truth + [padding_index] * (max_length - len(truth)) for truth in truths
+            ]  # type:ignore
+        )
+        return loss_func(potentials, truths)[::-1]  # type:ignore
 
     def add_label(self, label: str) -> int:
         if label in self.labels:

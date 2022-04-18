@@ -43,19 +43,14 @@ def partial_transformer_tagger_forward(
 ) -> tuple:
     tokenizer = model.attrs["tokenizer"]
 
-    texts = [
-        tokenizer.decode(
-            tokenizer.convert_tokens_to_ids([token.text for token in doc]),
-            clean_up_tokenization_spaces=False,
-        )
-        for doc in docs
-    ]
+    texts = [doc.text for doc in docs]
     X = tokenizer(
         texts,
-        add_special_tokens=False,
+        add_special_tokens=True,
         return_token_type_ids=True,
         return_attention_mask=True,
         return_tensors="pt",
+        return_offsets_mapping=True,
         padding=True,
         truncation=True,
     )
@@ -65,7 +60,7 @@ def partial_transformer_tagger_forward(
         (energy, X.attention_mask.bool()), is_train
     )
 
-    return (energy, tag_indices), backward
+    return (energy, tag_indices, X.offset_mapping), backward
 
 
 def partial_transformer_tagger_init(
