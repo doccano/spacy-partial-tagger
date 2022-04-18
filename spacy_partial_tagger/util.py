@@ -12,7 +12,7 @@ def to_subword_tags(
             index[j] = i
 
     offsets = tags_to_entities(tags)
-    subword_tags = ["O"] * len(offset_mapping)
+    subword_tags = ["O"] * (sum([1 for x, y in offset_mapping if x != y]) + 2)
     for label, start, end in offsets:
         i = index[start]
         j = index[end]

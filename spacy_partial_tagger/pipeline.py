@@ -151,6 +151,8 @@ class PartialEntityRecognizer(TrainablePipe):
                 self.tag_to_id[tag] if tag != "O" else unknown_index
                 for tag in subword_tags
             ]
+            # start/end token
+            tag_indices[0] = tag_indices[-1] = self.tag_to_id["O"]
             truths.append(tag_indices)
         max_length = max(map(len, truths))
         truths = self.model.ops.asarray(  # type:ignore
