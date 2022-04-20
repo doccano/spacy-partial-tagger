@@ -1,14 +1,29 @@
 import json
 import os
 from argparse import ArgumentParser
-from typing import List
+from typing import List, Tuple
 
 import spacy
 from spacy.tokens import Doc, DocBin
 from spacy.training.iob_utils import biluo_tags_to_spans
 
 
-def converter(tokens: List[str], annotations: List[dict]) -> tuple:
+def converter(
+    tokens: List[str], annotations: List[dict]
+) -> Tuple[List[str], List[Tuple[int, int, str]]]:
+    """Converts data from token-based to character-based.
+
+    Args:
+        tokens: A list of tokens.
+        annotations: A list of dictionaries represent a named entity  annotation.
+        Each dictionary should have start/end/type keys. Start and end represent
+        start position and end position respectively. Type represents a label of
+        a named entity.
+
+    Returns:
+        A tuple of converted data.
+    """
+
     char_tokens = list(" ".join(tokens))
     token_index_to_char_index: list = [[] for _ in range(len(tokens))]
     now = 0
@@ -16,6 +31,12 @@ def converter(tokens: List[str], annotations: List[dict]) -> tuple:
         for char in token:
             now = char_tokens.index(char, now)
             token_index_to_char_index[i].append(now)
+            now += 1
+        assert token == "".join(
+            char_tokens[
+                token_index_to_char_index[i][0] : token_index_to_char_index[i][-1] + 1
+            ]
+        )
     char_annotations = [
         # [start, end)
         (
