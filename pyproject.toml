@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "spacy-partial-tagger"
-version = "0.4.0"
+version = "0.5.0"
 description = ""
 authors = ["yasufumi <yasufumi.taniguchi@gmail.com>"]
 
@@ -24,6 +24,15 @@ pytest-cov = "^3.0.0"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins.spacy_factories]
+partial_ner = "spacy_partial_tagger.pipeline:make_partial_ner"
+
+[tool.poetry.plugins.spacy_tokenizers]
+"character_tokenizer.v1" = "spacy_partial_tagger.tokenizer:create_character_tokenizer"
+
+[tool.poetry.plugins.spacy_architectures]
+"spacy-partial-tagger.PartialTransformerTagger.v1" = "spacy_partial_tagger.architecture:build_partial_transformer_tagger"
 
 [tool.mypy]
 ignore_missing_imports = true

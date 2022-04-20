@@ -1,6 +1,13 @@
 # spacy-partial-tagger
 
 
+## Installation
+
+```
+poetry install
+```
+
+
 ## Data preparation
 
 Download pre-processed files:
@@ -22,11 +29,11 @@ python -m spacy_partial_tagger.convert --input entity.test.jsonl --output test.s
 ## Training
 
 ```sh
-python -m spacy train config.cfg --code spacy_partial_tagger/__init__.py --output outputs
+python -m spacy train config.cfg --output outputs
 ```
 
 ## Evaluation
 
 ```sh
-python -m spacy evaluate outputs/model-best test.spacy --code spacy_partial_tagger/__init__.py 
+python -m spacy evaluate outputs/model-best test.spacy
 ```
