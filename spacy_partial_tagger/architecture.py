@@ -43,7 +43,7 @@ def partial_transformer_tagger_forward(
 ) -> tuple:
     tokenizer = model.attrs["tokenizer"]
 
-    texts = [sent.text for doc in docs for sent in doc.sents]
+    texts = [doc.text for doc in docs]
     X = tokenizer(
         texts,
         add_special_tokens=True,
