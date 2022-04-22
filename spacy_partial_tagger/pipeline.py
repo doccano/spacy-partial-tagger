@@ -186,7 +186,8 @@ class PartialEntityRecognizer(TrainablePipe):
                 truth + [padding_index] * (max_length - len(truth)) for truth in truths
             ]  # type:ignore
         )
-        return loss_func(potentials, truths)[::-1]  # type:ignore
+        grad, loss = loss_func(potentials, truths)  # type:ignore
+        return loss.item(), grad  # type:ignore
 
     def add_label(self, label: str) -> int:
         if label in self.labels:
