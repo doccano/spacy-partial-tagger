@@ -5,7 +5,7 @@ from spacy import util
 from spacy.errors import Errors
 from spacy.language import Language
 from spacy.pipeline import TrainablePipe
-from spacy.tokens import Doc
+from spacy.tokens import Doc, Span
 from spacy.training import Example, biluo_tags_to_spans, iob_to_biluo
 from spacy.vocab import Vocab
 from thinc.config import Config
@@ -63,22 +63,48 @@ class PartialEntityRecognizer(TrainablePipe):
     def unknown_index(self) -> int:
         return self.cfg["unknown_index"]
 
+    @staticmethod
+    def _to_sentences(doc: Doc) -> List[Doc]:
+        if doc.has_annotation("SENT_START"):
+            return [sent.as_doc() for sent in doc.sents]
+        else:
+            return [doc]
+
     def predict(self, docs: List[Doc]) -> tuple:
+        docs = [sent for doc in docs for sent in self._to_sentences(doc)]
         _, guesses, offset_mappings = self.model.predict(docs)
         return guesses, offset_mappings
 
     def set_annotations(self, docs: List[Doc], batch_tag_indices: tuple) -> None:
-        guesses, offset_mappings = batch_tag_indices
-        for doc, tag_indices, offset_mapping in zip(
-            docs, guesses.tolist(), offset_mappings.tolist()
-        ):
-            subword_tags = []
-            for i in tag_indices:
-                if i == -1:
-                    break
-                subword_tags.append(self.id_to_tag[i])  # type:ignore
-            tags = from_subword_tags(subword_tags, offset_mapping, len(doc))
-            doc.ents = biluo_tags_to_spans(doc, tags)  # type:ignore
+        guesses, offset_mappings = (
+            batch_tag_indices[0].tolist(),
+            batch_tag_indices[1].tolist(),
+        )
+        index = 0
+        for doc in docs:
+            ents = []
+            offset = 0
+            for sent in self._to_sentences(doc):
+                subword_tags = []
+                for i in guesses[index]:
+                    if i == -1:
+                        break
+                    subword_tags.append(self.id_to_tag[i])  # type:ignore
+                tags = from_subword_tags(
+                    subword_tags, offset_mappings[index], len(sent)
+                )
+                for span in biluo_tags_to_spans(sent, tags):
+                    ents.append(
+                        Span(
+                            doc,
+                            span.start + offset,
+                            span.end + offset,
+                            label=span.label,
+                        )
+                    )
+                index += 1
+                offset += len(tags)
+            doc.ents = ents  # type:ignore
 
     def update(
         self,
