@@ -45,7 +45,7 @@ class TransformerTokenizer:
     def to_disk(self, path: str, **kwargs: Any) -> None:
         ...
 
-    def from_dsik(
+    def from_disk(
         self, path: str, *, exclude: tuple = tuple()
     ) -> "TransformerTokenizer":
         return self
