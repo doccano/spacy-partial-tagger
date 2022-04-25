@@ -1,35 +1,45 @@
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple, cast
 
+import torch
 from spacy.tokens import Doc
 from spacy.util import registry
-from thinc.model import Model
+from thinc.api import (
+    ArgsKwargs,
+    Model,
+    chain,
+    get_width,
+    list2array,
+    torch2xp,
+    with_getitem,
+    xp2torch,
+)
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
-from transformers import AutoTokenizer
+from thinc.types import Floats2d, Floats3d, Floats4d, Ints1d, Ints2d
 
+from spacy_partial_tagger.layers.crf import CRF
 from spacy_partial_tagger.layers.decoder import ConstrainedDecoder, get_constraints
-from spacy_partial_tagger.layers.energy_function import PartialTransformerEnergyFunction
 
 
-@registry.architectures.register("spacy-partial-tagger.PartialTransformerTagger.v1")
-def build_partial_transformer_tagger(
-    model_name: str,
-    feature_size: int,
-    num_tags: Optional[int] = None,
+@registry.architectures.register("spacy-partial-tagger.PartialTagger.v1")
+def build_partial_tagger(
+    tok2vec: Model[List[Doc], List[Floats2d]],
+    nO: Optional[int] = None,
+    *,
     dropout: float = 0.2,
     padding_index: int = -1,
     mixed_precision: bool = False,
-    grad_scaler: Optional[PyTorchGradScaler] = None,
+    grad_scaler: Optional[PyTorchGradScaler] = None
 ) -> Model:
+    nI = None
+    if tok2vec.has_dim("nI"):
+        nI = tok2vec.get_dim("nI")
 
-    return Model(
-        name="partial_transformer_tagger",
-        forward=partial_transformer_tagger_forward,
-        init=partial_transformer_tagger_init,
+    partial_tagger: Model = Model(
+        name="partial_tagger",
+        forward=partial_tagger_forward,
+        init=partial_tagger_init,
+        dims={"nI": nI, "nO": nO},
         attrs={
-            "tokenizer": AutoTokenizer.from_pretrained(model_name),
-            "model_name": model_name,
-            "feature_size": feature_size,
-            "num_tags": num_tags,
             "dropout": dropout,
             "padding_index": padding_index,
             "mixed_precision": mixed_precision,
@@ -37,67 +47,120 @@ def build_partial_transformer_tagger(
         },
     )
 
-
-def partial_transformer_tagger_forward(
-    model: Model, docs: List[Doc], is_train: bool
-) -> tuple:
-    tokenizer = model.attrs["tokenizer"]
-
-    texts = [doc.text for doc in docs]
-    X = tokenizer(
-        texts,
-        add_special_tokens=True,
-        return_token_type_ids=True,
-        return_attention_mask=True,
-        return_tensors="pt",
-        return_offsets_mapping=True,
-        padding=True,
-        truncation=True,
+    model: Model = chain(
+        cast(
+            Model[Tuple[List[Doc], Ints1d], Tuple[Floats2d, Ints1d]],
+            with_getitem(
+                0, chain(tok2vec, cast(Model[List[Floats2d], Floats2d], list2array()))
+            ),
+        ),
+        partial_tagger,
     )
-    energy, backward = model.get_ref("energy_function")(X, is_train)
-
-    tag_indices, _ = model.get_ref("decoder")(
-        (energy, X.attention_mask.bool()), is_train
-    )
-
-    return (energy, tag_indices, X.offset_mapping), backward
+    model.set_ref("partial_tagger", partial_tagger)
+    return model
 
 
-def partial_transformer_tagger_init(
-    model: Model, X: Any = None, Y: dict = None
-) -> None:
+def partial_tagger_init(model: Model, X: Any = None, Y: Any = None) -> None:
     if model.layers:
         return
 
     if Y is None:
         Y = {0: "O"}
 
-    model_name = model.attrs["model_name"]
-    feature_size = model.attrs["feature_size"]
-    num_tags = model.attrs["num_tags"] or len(Y)
+    if X is not None and model.has_dim("nI") is None:
+        model.set_dim("nI", get_width(X))
+
+    if model.has_dim("nO") is None:
+        model.set_dim("nO", len(Y))
+
+    PyTorchWrapper = registry.get("layers", "PyTorchWrapper.v2")
+
     dropout = model.attrs["dropout"]
     padding_index = model.attrs["padding_index"]
     mixed_precision = model.attrs["mixed_precision"]
     grad_scaler = model.attrs["grad_scaler"]
 
-    PyTorchWrapper = registry.get("layers", "PyTorchWrapper.v2")
-
-    energy_function = PyTorchWrapper(
-        PartialTransformerEnergyFunction(
-            model_name, feature_size, num_tags, dropout=dropout
-        ),
+    crf = PyTorchWrapper(
+        CRF(model.get_dim("nI"), model.get_dim("nO"), dropout),
+        convert_inputs=convert_crf_inputs,
+        convert_outputs=convert_crf_outputs,
         mixed_precision=mixed_precision,
         grad_scaler=grad_scaler,
     )
     decoder = PyTorchWrapper(
-        ConstrainedDecoder(
-            *get_constraints(Y),
-            padding_index=padding_index,
-        ),
+        ConstrainedDecoder(*get_constraints(Y), padding_index=padding_index),
         mixed_precision=mixed_precision,
+        convert_inputs=convert_decoder_inputs,
+        convert_outputs=convert_decoder_outputs,
         grad_scaler=grad_scaler,
     )
 
-    model._layers = [energy_function, decoder]
-    model.set_ref("energy_function", energy_function)
+    model._layers = [crf, decoder]
+    model.set_ref("crf", crf)
     model.set_ref("decoder", decoder)
+
+
+def partial_tagger_forward(model: Model, X: Any, is_train: bool) -> tuple:
+    log_potentials, backward = model.get_ref("crf")(X, is_train)
+
+    tag_indices, _ = model.get_ref("decoder")((log_potentials, X[1]), is_train)
+
+    return (log_potentials, tag_indices), backward
+
+
+def convert_crf_inputs(
+    model: Model, X_lengths: Tuple[Floats2d, Ints1d], is_train: bool = False
+) -> tuple:
+    flatten = model.ops.flatten
+    unflatten = model.ops.unflatten
+    pad = model.ops.pad
+    unpad = model.ops.unpad
+
+    X, L = X_lengths
+
+    Xt = xp2torch(pad(unflatten(X, L)), requires_grad=is_train)
+    Lt = xp2torch(L)
+
+    def convert_from_torch_backward(d_inputs: ArgsKwargs) -> Tuple[Floats2d, Ints1d]:
+        dX = cast(Floats3d, torch2xp(d_inputs.args[0]))
+        return cast(Floats2d, flatten(unpad(dX, list(L)))), L  # type:ignore
+
+    output = ArgsKwargs(args=(Xt, Lt), kwargs={})
+
+    return output, convert_from_torch_backward
+
+
+def convert_crf_outputs(model: Model, inputs_outputs: tuple, is_train: bool) -> tuple:
+
+    _, Y_t = inputs_outputs
+
+    def convert_for_torch_backward(dY: Floats4d) -> ArgsKwargs:
+        dY_t = xp2torch(dY)
+        return ArgsKwargs(
+            args=([Y_t],),
+            kwargs={"grad_tensors": [dY_t]},
+        )
+
+    Y = cast(Floats4d, torch2xp(Y_t))
+    return Y, convert_for_torch_backward
+
+
+def convert_decoder_inputs(
+    model: Model, X_lengths: Tuple[Floats4d, Ints1d], is_train: bool
+) -> tuple:
+    X, L = X_lengths
+
+    Xt = xp2torch(X, requires_grad=True)
+    Lt = xp2torch(L, requires_grad=False)
+    output = ArgsKwargs(args=(Xt, Lt), kwargs={})
+    return output, lambda d_inputs: []
+
+
+def convert_decoder_outputs(
+    model: Model,
+    inputs_outputs: Tuple[Tuple[Floats4d, Ints1d], torch.Tensor],
+    is_train: bool,
+) -> tuple:
+    _, Y_t = inputs_outputs
+    Y = cast(Ints2d, torch2xp(Y_t))
+    return Y, lambda dY: []
