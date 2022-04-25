@@ -72,11 +72,10 @@ def main(input_path: str, output_path: str, lang: str, model_name: str) -> None:
     print("Processing...")
     with open(input_path) as f:
         for data in map(json.loads, f):
-            text = " ".join(data["tokens"])
-            subwords = tokenizer(text)
+            subwords = tokenizer(" ".join(data["tokens"]))
             annotations = converter(
                 data["tokens"],
-                text,
+                subwords.text,
                 [subword.text for subword in subwords],
                 data["gold_annotations"],
             )
