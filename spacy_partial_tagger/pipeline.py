@@ -1,3 +1,4 @@
+from itertools import islice
 from typing import Callable, Iterable, List
 
 import srsly
@@ -5,15 +6,15 @@ from spacy import util
 from spacy.errors import Errors
 from spacy.language import Language
 from spacy.pipeline import TrainablePipe
-from spacy.tokens import Doc, Span
+from spacy.tokens import Doc
 from spacy.training import Example, biluo_tags_to_spans, iob_to_biluo
 from spacy.vocab import Vocab
 from thinc.config import Config
 from thinc.model import Model
 from thinc.optimizers import Optimizer
+from thinc.types import Floats2d, Floats4d, Ints1d
 
 from spacy_partial_tagger.loss import ExpectedEntityRatioLoss
-from spacy_partial_tagger.util import from_subword_tags, to_subword_tags
 
 
 class PartialEntityRecognizer(TrainablePipe):
@@ -63,48 +64,20 @@ class PartialEntityRecognizer(TrainablePipe):
     def unknown_index(self) -> int:
         return self.cfg["unknown_index"]
 
-    @staticmethod
-    def _to_sentences(doc: Doc) -> List[Doc]:
-        if doc.has_annotation("SENT_START"):
-            return [sent.as_doc() for sent in doc.sents]
-        else:
-            return [doc]
+    def _get_lengths_from_docs(self, docs: List[Doc]) -> Ints1d:
+        return self.model.ops.asarray1i([len(doc) for doc in docs])
 
-    def predict(self, docs: List[Doc]) -> tuple:
-        docs = [sent for doc in docs for sent in self._to_sentences(doc)]
-        _, guesses, offset_mappings = self.model.predict(docs)
-        return guesses, offset_mappings
+    def predict(self, docs: List[Doc]) -> Floats2d:
+        lengths = self._get_lengths_from_docs(docs)
+        _, guesses = self.model.predict((docs, lengths))
+        return guesses
 
-    def set_annotations(self, docs: List[Doc], batch_tag_indices: tuple) -> None:
-        guesses, offset_mappings = (
-            batch_tag_indices[0].tolist(),
-            batch_tag_indices[1].tolist(),
-        )
-        index = 0
-        for doc in docs:
-            ents = []
-            offset = 0
-            for sent in self._to_sentences(doc):
-                subword_tags = []
-                for i in guesses[index]:
-                    if i == -1:
-                        break
-                    subword_tags.append(self.id_to_tag[i])  # type:ignore
-                tags = from_subword_tags(
-                    subword_tags, offset_mappings[index], len(sent)
-                )
-                for span in biluo_tags_to_spans(sent, tags):
-                    ents.append(
-                        Span(
-                            doc,
-                            span.start + offset,
-                            span.end + offset,
-                            label=span.label,
-                        )
-                    )
-                index += 1
-                offset += len(tags)
-            doc.ents = ents  # type:ignore
+    def set_annotations(self, docs: List[Doc], batch_tag_indices: Floats2d) -> None:
+        for doc, tag_indices in zip(docs, batch_tag_indices.tolist()):
+            tags = []
+            for index in tag_indices[: len(doc)]:
+                tags.append(self.id_to_tag[index])
+            doc.ents = biluo_tags_to_spans(doc, tags)  # type:ignore
 
     def update(
         self,
@@ -117,10 +90,10 @@ class PartialEntityRecognizer(TrainablePipe):
         if losses is None:
             losses = {}
         losses.setdefault(self.name, 0.0)
-        (log_potentials, _, offset_mapping), backward = self.model.begin_update(
-            [example.x for example in examples]
-        )
-        loss, grad = self.get_loss(examples, (log_potentials, offset_mapping))
+        docs = [example.x for example in examples]
+        lengths = self._get_lengths_from_docs(docs)
+        (log_potentials, _), backward = self.model.begin_update((docs, lengths))
+        loss, grad = self.get_loss(examples, log_potentials)
         backward(grad)
         if sgd is not None:
             self.finish_update(sgd)
@@ -150,20 +123,28 @@ class PartialEntityRecognizer(TrainablePipe):
                 self.add_label(tag)
             else:
                 self.add_label(tag.split("-")[1])
+
+        X = []
+        for example in islice(get_examples(), 10):
+            X.append(example.predicted)
+
+        # For initialization, we don't need correct sentence boundaries.
+        lengths = self._get_lengths_from_docs(X)
+
+        self.model.initialize(X=(X, lengths), Y=id_to_tag)
+
+        self.cfg["nI"] = self.model.get_ref("partial_tagger").get_dim("nI")
         self.cfg["tag_to_id"] = tag_to_id
         self.cfg["id_to_tag"] = id_to_tag
         self.cfg["outside_index"] = tag_to_id["O"]
 
-        self.model.initialize(Y=id_to_tag)
-
-    def get_loss(self, examples: Iterable[Example], scores: tuple) -> tuple:
-        potentials, offset_mappings = scores
+    def get_loss(self, examples: Iterable[Example], scores: Floats4d) -> tuple:
         padding_index = self.padding_index
         unknown_index = self.unknown_index
         outside_index = self.outside_index
         loss_func = ExpectedEntityRatioLoss(padding_index, unknown_index, outside_index)
         truths = []
-        for example, offset_mapping in zip(examples, offset_mappings.tolist()):
+        for example in examples:
             tags = iob_to_biluo(
                 [
                     f"{token.ent_iob_}-{token.ent_type_}"
@@ -172,13 +153,9 @@ class PartialEntityRecognizer(TrainablePipe):
                     for token in example.y
                 ]
             )
-            subword_tags = to_subword_tags(tags, offset_mapping)
             tag_indices = [
-                self.tag_to_id[tag] if tag != "O" else unknown_index
-                for tag in subword_tags
+                self.tag_to_id[tag] if tag != "O" else unknown_index for tag in tags
             ]
-            # start/end token
-            tag_indices[0] = tag_indices[-1] = self.tag_to_id["O"]
             truths.append(tag_indices)
         max_length = max(map(len, truths))
         truths = self.model.ops.asarray(  # type:ignore
@@ -186,7 +163,7 @@ class PartialEntityRecognizer(TrainablePipe):
                 truth + [padding_index] * (max_length - len(truth)) for truth in truths
             ]  # type:ignore
         )
-        grad, loss = loss_func(potentials, truths)  # type:ignore
+        grad, loss = loss_func(scores, truths)  # type:ignore
         return loss.item(), grad  # type:ignore
 
     def add_label(self, label: str) -> int:
@@ -217,6 +194,7 @@ class PartialEntityRecognizer(TrainablePipe):
 
         util.from_bytes(bytes_data, deserialize, exclude)
 
+        self.model.get_ref("partial_tagger").set_dim("nI", self.config["nI"])
         self.model.initialize(Y=self.id_to_tag)
 
         self.cfg["id_to_tag"] = {
@@ -260,9 +238,20 @@ class PartialEntityRecognizer(TrainablePipe):
 
 default_model_config = """
 [model]
-@architectures = "spacy-partial-tagger.PartialTransformerTagger.v1"
-model_name = "roberta-base"
-feature_size = 768
+@architectures = "spacy-partial-tagger.PartialTagger.v1"
+nO = null
+dropout = 0.2
+padding_index = -1
+
+[model.tok2vec]
+@architectures = "spacy.HashEmbedCNN.v2"
+pretrained_vectors = null
+width = 96
+depth = 4
+embed_size = 300
+window_size = 1
+maxout_pieces = 3
+subword_features = true
 """
 DEFAULT_NER_MODEL = Config().from_str(default_model_config)["model"]
 
