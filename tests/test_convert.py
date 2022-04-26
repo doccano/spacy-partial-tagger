@@ -18,6 +18,6 @@ def test_converter(transformer_tokenizer: TransformerTokenizer) -> None:
         {"start": 0, "end": 1, "type": "LOC"},
         {"start": 5, "end": 6, "type": "LOC"},
     ]
-    subword_annotations = converter(tokens, text, subwords, annotations)
+    subword_annotations = converter(tokens, text, subwords[1:-1], annotations, offset=1)
 
-    assert subword_annotations == [(0, 2, "LOC"), (6, 7, "LOC")]
+    assert subword_annotations == [(1, 3, "LOC"), (7, 8, "LOC")]

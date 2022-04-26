@@ -11,7 +11,11 @@ from .tokenizer import TransformerTokenizer
 
 
 def converter(
-    tokens: List[str], text: str, subwords: List[str], annotations: List[dict]
+    tokens: List[str],
+    text: str,
+    subwords: List[str],
+    annotations: List[dict],
+    offset: int = 0,
 ) -> List[Tuple[int, int, str]]:
     """Converts annotations from token-based to subword-based.
 
@@ -57,8 +61,8 @@ def converter(
     subword_annotations = [
         # [start, end)
         (
-            token_index_to_subword_index[annotation["start"]][0],
-            token_index_to_subword_index[annotation["end"] - 1][-1] + 1,
+            token_index_to_subword_index[annotation["start"]][0] + offset,
+            token_index_to_subword_index[annotation["end"] - 1][-1] + 1 + offset,
             annotation["type"],
         )
         for annotation in annotations
@@ -79,9 +83,10 @@ def main(input_path: str, output_path: str, lang: str, model_name: str) -> None:
             subwords = tokenizer(" ".join(data["tokens"]))
             annotations = converter(
                 data["tokens"],
-                subwords.text,
-                [subword.text for subword in subwords],
+                subwords[1:-1].text,
+                [subword.text for subword in subwords[1:-1]],
                 data["gold_annotations"],
+                offset=1,
             )
             tags = ["O"] * len(subwords)
             for start, end, entity in annotations:

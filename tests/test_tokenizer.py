@@ -25,7 +25,18 @@ def test_character_tokenizer(character_tokenizer: CharacterTokenizer) -> None:
 def test_transformer_tokenizer(transformer_tokenizer: TransformerTokenizer) -> None:
     text = "Tokyo is the capital of Japan."
     doc = transformer_tokenizer(text)
-    expected = ["Tok", "yo", " is", " the", " capital", " of", " Japan", "."]
+    expected = [
+        "<s>",
+        "Tok",
+        "yo",
+        " is",
+        " the",
+        " capital",
+        " of",
+        " Japan",
+        ".",
+        "</s>",
+    ]
 
     assert [token.text for token in doc] == expected
-    assert doc.text == text
+    assert doc.text == "<s>" + text + "</s>"

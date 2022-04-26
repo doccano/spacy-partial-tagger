@@ -36,7 +36,7 @@ class TransformerTokenizer:
         self._tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     def __call__(self, text: str) -> Doc:
-        subwords = self._tokenizer.tokenize(text)
+        subwords = self._tokenizer.tokenize(text, add_special_tokens=True)
         words = []
         for subword in subwords:
             words.extend(self._tokenizer.convert_tokens_to_string([subword]))
