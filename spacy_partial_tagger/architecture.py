@@ -3,15 +3,7 @@ from typing import Any, List, Optional, Tuple, cast
 import torch
 from spacy.tokens import Doc
 from spacy.util import registry
-from thinc.api import (
-    ArgsKwargs,
-    Model,
-    chain,
-    list2array,
-    torch2xp,
-    with_getitem,
-    xp2torch,
-)
+from thinc.api import ArgsKwargs, Model, chain, torch2xp, with_getitem, xp2torch
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
 from thinc.types import Floats2d, Floats3d, Floats4d, Ints1d, Ints2d
 
@@ -46,14 +38,11 @@ def build_partial_tagger(
 
     model: Model = chain(
         cast(
-            Model[Tuple[List[Doc], Ints1d], Tuple[Floats2d, Ints1d]],
-            with_getitem(
-                0, chain(tok2vec, cast(Model[List[Floats2d], Floats2d], list2array()))
-            ),
+            Model[Tuple[List[Doc], Ints1d], Tuple[List[Floats2d], Ints1d]],
+            with_getitem(0, tok2vec),
         ),
         partial_tagger,
     )
-    model.set_ref("partial_tagger", partial_tagger)
     return model
 
 
@@ -77,7 +66,6 @@ def partial_tagger_init(model: Model, X: Any = None, Y: Any = None) -> None:
     crf = PyTorchWrapper(
         CRF(model.get_dim("nI"), model.get_dim("nO"), dropout),
         convert_inputs=convert_crf_inputs,
-        convert_outputs=convert_crf_outputs,
         mixed_precision=mixed_precision,
         grad_scaler=grad_scaler,
     )
@@ -95,7 +83,7 @@ def partial_tagger_init(model: Model, X: Any = None, Y: Any = None) -> None:
 
 
 def partial_tagger_forward(
-    model: Model, X: Tuple[Floats2d, Ints1d], is_train: bool
+    model: Model, X: Tuple[List[Floats2d], Ints1d], is_train: bool
 ) -> tuple:
     log_potentials, backward = model.get_ref("crf")(X, is_train)
 
@@ -105,37 +93,25 @@ def partial_tagger_forward(
 
 
 def convert_crf_inputs(
-    model: Model, X_lengths: Tuple[Floats2d, Ints1d], is_train: bool
+    model: Model, X_lengths: Tuple[List[Floats2d], Ints1d], is_train: bool
 ) -> tuple:
-    flatten = model.ops.flatten
-    unflatten = model.ops.unflatten
     pad = model.ops.pad
     unpad = model.ops.unpad
 
     X, L = X_lengths
 
-    Xt = xp2torch(pad(unflatten(X, L)), requires_grad=is_train)
+    Xt = xp2torch(pad(X), requires_grad=is_train)
     Lt = xp2torch(L)
 
-    def convert_from_torch_backward(d_inputs: ArgsKwargs) -> Tuple[Floats2d, Ints1d]:
+    def convert_from_torch_backward(
+        d_inputs: ArgsKwargs,
+    ) -> Tuple[List[Floats2d], Ints1d]:
         dX = cast(Floats3d, torch2xp(d_inputs.args[0]))
-        return cast(Floats2d, flatten(unpad(dX, L.tolist()))), L  # type:ignore
+        return cast(List[Floats2d], unpad(dX, L.tolist())), L  # type:ignore
 
     output = ArgsKwargs(args=(Xt, Lt), kwargs={})
 
     return output, convert_from_torch_backward
-
-
-def convert_crf_outputs(model: Model, inputs_outputs: tuple, is_train: bool) -> tuple:
-
-    _, Y_t = inputs_outputs
-
-    def convert_for_torch_backward(dY: Floats4d) -> ArgsKwargs:
-        dY_t = xp2torch(dY)
-        return ArgsKwargs(args=(Y_t,), kwargs={"grad_tensors": dY_t})
-
-    Y = cast(Floats4d, torch2xp(Y_t))
-    return Y, convert_for_torch_backward
 
 
 def convert_decoder_inputs(
