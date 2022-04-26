@@ -1,4 +1,3 @@
-from itertools import islice
 from typing import Callable, Iterable, List
 
 import srsly
@@ -124,16 +123,8 @@ class PartialEntityRecognizer(TrainablePipe):
             else:
                 self.add_label(tag.split("-")[1])
 
-        X = []
-        for example in islice(get_examples(), 10):
-            X.append(example.predicted)
+        self.model.initialize(Y=id_to_tag)
 
-        # For initialization, we don't need correct sentence boundaries.
-        lengths = self._get_lengths_from_docs(X)
-
-        self.model.initialize(X=(X, lengths), Y=id_to_tag)
-
-        self.cfg["nI"] = self.model.get_ref("partial_tagger").get_dim("nI")
         self.cfg["tag_to_id"] = tag_to_id
         self.cfg["id_to_tag"] = id_to_tag
         self.cfg["outside_index"] = tag_to_id["O"]
@@ -193,8 +184,6 @@ class PartialEntityRecognizer(TrainablePipe):
         )
 
         util.from_bytes(bytes_data, deserialize, exclude)
-
-        self.model.get_ref("partial_tagger").set_dim("nI", self.config["nI"])
         self.model.initialize(Y=self.id_to_tag)
 
         self.cfg["id_to_tag"] = {
@@ -239,6 +228,7 @@ class PartialEntityRecognizer(TrainablePipe):
 default_model_config = """
 [model]
 @architectures = "spacy-partial-tagger.PartialTagger.v1"
+nI = 300
 nO = null
 dropout = 0.2
 padding_index = -1
