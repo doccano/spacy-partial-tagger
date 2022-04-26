@@ -3,7 +3,7 @@ from typing import Tuple, cast
 import torch
 from partial_tagger.functional import crf
 from thinc.loss import Loss
-from thinc.types import Floats1d, Floats3d, Ints2d
+from thinc.types import Floats1d, Floats4d, Ints2d
 from thinc.util import torch2xp, xp2torch
 
 
@@ -27,7 +27,7 @@ class ExpectedEntityRatioLoss(Loss):
         self.entity_ratio = entity_ratio
         self.entity_ratio_margin = entity_ratio_margin
 
-    def __call__(self, guesses: Floats3d, truths: Ints2d) -> Tuple[Floats3d, Floats1d]:
+    def __call__(self, guesses: Floats4d, truths: Ints2d) -> Tuple[Floats4d, Floats1d]:
         guesses_pt, truths_pt = xp2torch(guesses, requires_grad=True), xp2torch(truths)
         mask = truths_pt != self.padding_index
         truths_pt = crf.to_tag_bitmap(
@@ -62,10 +62,10 @@ class ExpectedEntityRatioLoss(Loss):
             log_Z - score
         ).mean() + self.expected_entity_ratio_loss_weight * eer_loss
         (grad,) = torch.autograd.grad(loss, guesses_pt)
-        return cast(Floats3d, torch2xp(grad)), cast(Floats1d, torch2xp(loss))
+        return cast(Floats4d, torch2xp(grad)), cast(Floats1d, torch2xp(loss))
 
-    def get_grad(self, guesses: Floats3d, truths: Ints2d) -> Floats3d:
+    def get_grad(self, guesses: Floats4d, truths: Ints2d) -> Floats4d:
         return self(guesses, truths)[0]
 
-    def get_loss(self, guesses: Floats3d, truths: Ints2d) -> Floats1d:
+    def get_loss(self, guesses: Floats4d, truths: Ints2d) -> Floats1d:
         return self(guesses, truths)[1]
