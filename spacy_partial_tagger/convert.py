@@ -50,6 +50,10 @@ def converter(
             ):
                 token_index_to_subword_index[i].append(char_index_to_subword_index[now])
             now += 1
+        assert (
+            token
+            == "".join(subwords[j] for j in token_index_to_subword_index[i]).strip()
+        )
     subword_annotations = [
         # [start, end)
         (
