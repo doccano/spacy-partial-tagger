@@ -89,6 +89,6 @@ def convert_transformer_outputs(
 
     def convert_for_torch_backward(dY: List[Floats2d]) -> ArgsKwargs:
         dY_t = [xp2torch(dy) for dy in dY]
-        return ArgsKwargs(args=([Y_t]), kwargs={"grad_tensors": dY_t})  # type:ignore
+        return ArgsKwargs(args=(Y_t,), kwargs={"grad_tensors": dY_t})  # type:ignore
 
     return [torch2xp(y_t) for y_t in Y_t], convert_for_torch_backward

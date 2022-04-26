@@ -132,7 +132,7 @@ def convert_crf_outputs(model: Model, inputs_outputs: tuple, is_train: bool) -> 
 
     def convert_for_torch_backward(dY: Floats4d) -> ArgsKwargs:
         dY_t = xp2torch(dY)
-        return ArgsKwargs(args=([Y_t],), kwargs={"grad_tensors": dY_t})
+        return ArgsKwargs(args=(Y_t,), kwargs={"grad_tensors": dY_t})
 
     Y = cast(Floats4d, torch2xp(Y_t))
     return Y, convert_for_torch_backward
