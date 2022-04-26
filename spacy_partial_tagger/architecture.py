@@ -52,7 +52,6 @@ def partial_tagger_init(model: Model, X: Any = None, Y: Any = None) -> None:
 
     if Y is None:
         Y = {0: "O"}
-
     if model.has_dim("nO") is None:
         model.set_dim("nO", len(Y))
 
