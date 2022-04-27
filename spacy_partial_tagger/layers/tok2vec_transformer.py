@@ -93,12 +93,11 @@ def convert_transformer_outputs(
 ) -> tuple:
     pad = model.ops.pad
     unpad = model.ops.unpad
-    max_length = model.attrs["max_length"]
 
     _, (Yt, Lt) = inputs_outputs
 
     def convert_for_torch_backward(dY: List[Floats2d]) -> ArgsKwargs:
-        dY_t = xp2torch(pad(dY, round_to=max_length))
+        dY_t = xp2torch(pad(dY, round_to=Yt.size(1)))
         return ArgsKwargs(args=(Yt,), kwargs={"grad_tensors": dY_t})  # type:ignore
 
     Y = cast(Floats3d, torch2xp(Yt))
