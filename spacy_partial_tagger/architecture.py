@@ -51,7 +51,7 @@ def partial_tagger_init(model: Model, X: Any = None, Y: Any = None) -> None:
         return
 
     if Y is None:
-        Y = {0: "O"}
+        Y = ["O"]
     if model.has_dim("nO") is None:
         model.set_dim("nO", len(Y))
 
@@ -69,7 +69,10 @@ def partial_tagger_init(model: Model, X: Any = None, Y: Any = None) -> None:
         grad_scaler=grad_scaler,
     )
     decoder = PyTorchWrapper(
-        ConstrainedDecoder(*get_constraints(Y), padding_index=padding_index),
+        ConstrainedDecoder(
+            *get_constraints({i: tag for i, tag in enumerate(Y)}),
+            padding_index=padding_index
+        ),
         mixed_precision=mixed_precision,
         convert_inputs=convert_decoder_inputs,
         convert_outputs=convert_decoder_outputs,

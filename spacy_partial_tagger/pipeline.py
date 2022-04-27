@@ -33,7 +33,7 @@ class PartialEntityRecognizer(TrainablePipe):
         self.cfg: dict = {
             "labels": [],
             "tag_to_id": {},
-            "id_to_tag": {},
+            "id_to_tag": [],
             "outside_index": 0,
             "padding_index": padding_index,
             "unknown_index": unknown_index,
@@ -103,7 +103,7 @@ class PartialEntityRecognizer(TrainablePipe):
         self, get_examples: Callable, *, nlp: Language, labels: dict = None
     ) -> None:
         tag_to_id: dict = {"O": 0}
-        id_to_tag: dict = {0: "O"}
+        id_to_tag: list = ["O"]
         for example in get_examples():
             tags = []
             for token in example.y:
@@ -114,7 +114,7 @@ class PartialEntityRecognizer(TrainablePipe):
                 tags.append(tag)
             for tag in iob_to_biluo(tags):
                 if tag not in tag_to_id:
-                    id_to_tag[len(tag_to_id)] = tag
+                    id_to_tag.append(tag)
                     tag_to_id[tag] = len(tag_to_id)
 
         for tag in tag_to_id:
@@ -187,9 +187,6 @@ class PartialEntityRecognizer(TrainablePipe):
         util.from_bytes(bytes_data, deserialize, exclude)
         self.model.initialize(Y=self.id_to_tag)
 
-        self.cfg["id_to_tag"] = {
-            int(key): value for key, value in self.cfg["id_to_tag"].items()
-        }
         model_deserializers = {
             "model": lambda b: self.model.from_bytes(b),
         }
@@ -215,9 +212,6 @@ class PartialEntityRecognizer(TrainablePipe):
             p, exclude=exclude
         )
         util.from_disk(path, deserialize, exclude)
-        self.cfg["id_to_tag"] = {
-            int(key): value for key, value in self.cfg["id_to_tag"].items()
-        }
         self.model.initialize(Y=self.id_to_tag)
         model_deserializers = {
             "model": load_model,
