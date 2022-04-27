@@ -1,11 +1,11 @@
-from typing import Any, Optional
+from typing import Any, Optional, Tuple, cast
 
 import torch
 from spacy.tokens import Doc
 from spacy.util import List, registry
 from thinc.api import ArgsKwargs, Model, torch2xp, xp2torch
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
-from thinc.types import Floats2d
+from thinc.types import Floats2d, Floats3d
 from torch.nn import Module
 from transformers import AutoModel, AutoTokenizer, BatchEncoding
 
@@ -16,16 +16,16 @@ class TransformersWrapper(Module):
 
         self.transformer = transformer
 
-    def forward(self, inputs: BatchEncoding) -> List[torch.Tensor]:
+    def forward(self, inputs: BatchEncoding) -> Tuple[torch.Tensor, torch.Tensor]:
         lengths = inputs.attention_mask.sum(dim=-1)
         outputs = self.transformer(**inputs).last_hidden_state
-        splitted = outputs.tensor_split(outputs.size(0))
-        return [t.squeeze(0)[: lengths[i]] for i, t in enumerate(splitted)]
+        return outputs, lengths
 
 
 @registry.architectures.register("spacy-partial-tagger.Tok2VecTransformer.v1")
 def build_tok2vec_transformer(
     model_name: str,
+    chunk_size: int = 0,
     *,
     mixed_precision: bool = False,
     grad_scaler: Optional[PyTorchGradScaler] = None
@@ -37,6 +37,7 @@ def build_tok2vec_transformer(
         dims={"nI": None, "nO": None},
         attrs={
             "model_name": model_name,
+            "chunk_size": chunk_size,
             "tokenizer": AutoTokenizer.from_pretrained(model_name),
             "mixed_precision": mixed_precision,
             "grad_scaler": grad_scaler,
@@ -53,7 +54,9 @@ def init(model: Model, X: Any = None, Y: Any = None) -> None:
     mixed_precision = model.attrs["mixed_precision"]
     grad_scaler = model.attrs["grad_scaler"]
 
-    pytorch_model = AutoModel.from_pretrained(model.attrs["model_name"])
+    pytorch_model = AutoModel.from_pretrained(
+        model.attrs["model_name"], chunk_size_feed_forward=model.attrs["chunk_size"]
+    )
 
     transformer = PyTorchWrapper(
         TransformersWrapper(pytorch_model),
@@ -85,10 +88,17 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
 def convert_transformer_outputs(
     model: Model, inputs_outputs: tuple, is_train: bool
 ) -> tuple:
-    _, Y_t = inputs_outputs
+    pad = model.ops.pad
+    unpad = model.ops.unpad
+
+    _, (Yt, Lt) = inputs_outputs
 
     def convert_for_torch_backward(dY: List[Floats2d]) -> ArgsKwargs:
-        dY_t = [xp2torch(dy) for dy in dY]
-        return ArgsKwargs(args=(Y_t,), kwargs={"grad_tensors": dY_t})  # type:ignore
+        dY_t = xp2torch(pad(dY))
+        return ArgsKwargs(args=(Yt,), kwargs={"grad_tensors": dY_t})  # type:ignore
 
-    return [torch2xp(y_t) for y_t in Y_t], convert_for_torch_backward
+    Y = cast(Floats3d, torch2xp(Yt))
+    return (
+        cast(List[Floats2d], unpad(Y, Lt.tolist())),
+        convert_for_torch_backward,
+    )
