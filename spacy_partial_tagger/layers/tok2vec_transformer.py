@@ -26,6 +26,7 @@ class TransformersWrapper(Module):
 def build_tok2vec_transformer(
     model_name: str,
     chunk_size: int = 0,
+    max_length: Optional[int] = None,
     *,
     mixed_precision: bool = False,
     grad_scaler: Optional[PyTorchGradScaler] = None
@@ -38,6 +39,7 @@ def build_tok2vec_transformer(
         attrs={
             "model_name": model_name,
             "chunk_size": chunk_size,
+            "max_length": max_length,
             "tokenizer": AutoTokenizer.from_pretrained(model_name),
             "mixed_precision": mixed_precision,
             "grad_scaler": grad_scaler,
@@ -78,7 +80,8 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
         return_token_type_ids=True,
         return_attention_mask=True,
         return_tensors="pt",
-        padding=True,
+        padding="max_length",
+        max_length=model.attrs["max_length"],
         truncation=False,
     )
     Y, backward = model.layers[0](X, is_train)
