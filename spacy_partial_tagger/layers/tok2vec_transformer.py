@@ -79,7 +79,7 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
         return_attention_mask=True,
         return_tensors="pt",
         padding=True,
-        truncation=True,
+        truncation=False,
     )
     Y, backward = model.layers[0](X, is_train)
     return Y, backward
