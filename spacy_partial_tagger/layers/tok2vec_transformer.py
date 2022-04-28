@@ -74,14 +74,19 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
     tokenizer = model.attrs["tokenizer"]
 
     texts = [doc.text for doc in X]
+    max_length = model.attrs["max_length"]
+    if max_length is not None:
+        padding = "max_length"
+    else:
+        padding = "longest"
     X = tokenizer(
         texts,
         add_special_tokens=False,
         return_token_type_ids=True,
         return_attention_mask=True,
         return_tensors="pt",
-        padding="max_length",
-        max_length=model.attrs["max_length"],
+        padding=padding,
+        max_length=max_length,
         truncation=False,
     )
     Y, backward = model.layers[0](X, is_train)
