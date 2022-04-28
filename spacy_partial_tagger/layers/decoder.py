@@ -30,10 +30,18 @@ class ConstrainedDecoder(nn.Module):
     def forward(
         self,
         log_potentials: torch.Tensor,
-        mask: Optional[torch.Tensor] = None,
+        lengths: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        if mask is None:
+        if lengths is None:
             mask = log_potentials.new_ones(log_potentials.shape[:-2], dtype=torch.bool)
+        else:
+            mask = (
+                torch.arange(
+                    log_potentials.size(1),
+                    device=log_potentials.device,
+                )[None, :]
+                < lengths[:, None]
+            )
 
         log_potentials.requires_grad_()
 
