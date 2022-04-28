@@ -13,7 +13,8 @@ from thinc.model import Model
 from thinc.optimizers import Optimizer
 from thinc.types import Floats2d, Floats4d, Ints1d
 
-from spacy_partial_tagger.loss import ExpectedEntityRatioLoss
+from .label_indexers import LabelIndexer
+from .loss import ExpectedEntityRatioLoss
 
 
 class PartialEntityRecognizer(TrainablePipe):
@@ -23,6 +24,7 @@ class PartialEntityRecognizer(TrainablePipe):
         model: Model,
         name: str,
         scorer: Callable,
+        label_indexer: LabelIndexer,
         padding_index: int = -1,
         unknown_index: int = -100,
     ) -> None:
@@ -30,6 +32,7 @@ class PartialEntityRecognizer(TrainablePipe):
         self.model = model
         self.name = name
         self.scorer = scorer
+        self.label_indexer = label_indexer
         self.cfg: dict = {
             "labels": [],
             "tag_to_id": {},
@@ -134,27 +137,10 @@ class PartialEntityRecognizer(TrainablePipe):
         unknown_index = self.unknown_index
         outside_index = self.outside_index
         loss_func = ExpectedEntityRatioLoss(padding_index, unknown_index, outside_index)
-        truths = []
-        for example in examples:
-            tags = iob_to_biluo(
-                [
-                    f"{token.ent_iob_}-{token.ent_type_}"
-                    if token.ent_iob_ != "O"
-                    else "O"
-                    for token in example.y
-                ]
-            )
-            tag_indices = [
-                self.tag_to_id[tag] if tag != "O" else unknown_index for tag in tags
-            ]
-            tag_indices[0] = tag_indices[-1] = self.tag_to_id["O"]
-            truths.append(tag_indices)
-        max_length = max(map(len, truths))
-        truths = self.model.ops.asarray(  # type:ignore
-            [
-                truth + [padding_index] * (max_length - len(truth)) for truth in truths
-            ]  # type:ignore
+        tag_indices = self.label_indexer(
+            [example.y for example in examples], self.tag_to_id
         )
+        truths = self.model.ops.asarray(tag_indices)  # type:ignore
         grad, loss = loss_func(scores, truths)  # type:ignore
         return loss.item(), grad  # type:ignore
 
@@ -262,7 +248,10 @@ def make_partial_ner(
     name: str,
     model: Model,
     scorer: Callable,
+    label_indexer: LabelIndexer,
     padding_index: int,
     unknown_index: int,
 ) -> PartialEntityRecognizer:
-    return PartialEntityRecognizer(nlp.vocab, model, name, scorer)
+    return PartialEntityRecognizer(
+        nlp.vocab, model, name, scorer, label_indexer, padding_index, unknown_index
+    )

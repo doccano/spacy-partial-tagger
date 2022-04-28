@@ -36,6 +36,9 @@ partial_ner = "spacy_partial_tagger.pipeline:make_partial_ner"
 "spacy-partial-tagger.PartialTagger.v1" = "spacy_partial_tagger.architecture:build_partial_tagger"
 "spacy-partial-tagger.Tok2VecTransformer.v1" = "spacy_partial_tagger.layers.tok2vec_transformer:build_tok2vec_transformer"
 
+[tool.poetry.plugins.spacy_label_indexers]
+"spacy-partial-tagger.RoBERTaLabelIndexer.v1" = "spacy_partial_tagger.label_indexers:configure_roberta_label_indexer"
+
 [tool.mypy]
 ignore_missing_imports = true
 disallow_untyped_defs = true
