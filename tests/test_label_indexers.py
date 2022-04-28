@@ -9,9 +9,9 @@ from spacy_partial_tagger.label_indexers import configure_roberta_label_indexer
 
 @pytest.fixture
 def docs(nlp: Language) -> List[Doc]:
-    words = ["Tokyo", "is", "the", "capital", "of", "Japan", "."]
+    words = ["<s>", "Tokyo", "is", "the", "capital", "of", "Japan", ".", "</s>"]
     doc = Doc(nlp.vocab, words=words, spaces=[True] * (len(words) - 1) + [False])
-    doc.set_ents([Span(doc, 0, 1, "LOC"), Span(doc, 5, 6, "LOC")])
+    doc.set_ents([Span(doc, 1, 2, "LOC"), Span(doc, 6, 7, "LOC")])
     return [doc]
 
 
@@ -23,4 +23,4 @@ def test_roberta_label_indexer(docs: List[Doc]) -> None:
 
     tag_indices = label_indexer(docs, tag_to_id)
 
-    assert tag_indices == [[1, -100, -100, -100, -100, 1, -100]]
+    assert tag_indices == [[0, 1, -100, -100, -100, -100, 1, -100, 0]]
