@@ -55,11 +55,11 @@ class TransformerAligner(Aligner):
         # [start, end]
         offsets = tags_to_entities(subword_tags)
         for label, start, end in offsets:
-            # [offset_mapping[i][0], offset_mapping[i][1])
             if not self.mapping[start] or not self.mapping[end]:
                 continue
+            # [mapping[i][0], mapping[i][-1]]
             i = self.mapping[start][0]
-            j = self.mapping[end][1]
+            j = self.mapping[end][-1]
             if i > j:
                 continue
             elif i == j:

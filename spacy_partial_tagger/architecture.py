@@ -24,18 +24,25 @@ def build_partial_tagger(
     grad_scaler: Optional[PyTorchGradScaler] = None
 ) -> Model:
 
-    partial_tagger: Model = Model(
-        name="partial_tagger",
-        forward=partial_tagger_forward,
-        init=partial_tagger_init,
-        dims={"nI": nI, "nO": nO},
-        attrs={
-            "dropout": dropout,
-            "padding_index": padding_index,
-            "mixed_precision": mixed_precision,
-            "grad_scaler": grad_scaler,
-        },
+    partial_tagger: Model = with_getitem(
+        0,
+        Model(
+            name="partial_tagger",
+            forward=partial_tagger_forward,
+            init=partial_tagger_init,
+            dims={"nI": nI, "nO": nO},
+            attrs={
+                "dropout": dropout,
+                "padding_index": padding_index,
+                "mixed_precision": mixed_precision,
+                "grad_scaler": grad_scaler,
+            },
+        ),
     )
+    # TODO: Get rid of this hack.
+    # with_getitem doesn't correctly initialize the given layer.
+    # Because it fails to handle dimensions, so I use this hack.
+    partial_tagger._dims = {"nI": nI, "nO": nO}
 
     model: Model = chain(
         cast(
@@ -48,7 +55,7 @@ def build_partial_tagger(
                 Tuple[Tuple[List[Floats2d], Ints1d], list],
                 Tuple[Tuple[Floats4d, Floats2d], list],
             ],
-            with_getitem(0, partial_tagger),
+            partial_tagger,
         ),
     )
     return model
@@ -57,9 +64,8 @@ def build_partial_tagger(
 def partial_tagger_init(model: Model, X: Any = None, Y: Any = None) -> None:
     if model.layers:
         return
-
     if Y is None:
-        Y = ["O"]
+        Y = {0: "O"}
     if model.has_dim("nO") is None:
         model.set_dim("nO", len(Y))
 
@@ -77,10 +83,7 @@ def partial_tagger_init(model: Model, X: Any = None, Y: Any = None) -> None:
         grad_scaler=grad_scaler,
     )
     decoder = PyTorchWrapper(
-        ConstrainedDecoder(
-            *get_constraints({i: tag for i, tag in enumerate(Y)}),
-            padding_index=padding_index
-        ),
+        ConstrainedDecoder(*get_constraints(Y), padding_index=padding_index),
         mixed_precision=mixed_precision,
         convert_inputs=convert_decoder_inputs,
         convert_outputs=convert_decoder_outputs,
@@ -96,7 +99,6 @@ def partial_tagger_forward(
     model: Model, X: Tuple[List[Floats2d], Ints1d], is_train: bool
 ) -> tuple:
     log_potentials, backward = model.get_ref("crf")(X, is_train)
-
     tag_indices, _ = model.get_ref("decoder")((log_potentials, X[1]), is_train)
 
     return (log_potentials, tag_indices), backward

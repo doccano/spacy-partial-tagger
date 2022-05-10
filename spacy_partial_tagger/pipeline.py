@@ -140,7 +140,9 @@ class PartialEntityRecognizer(TrainablePipe):
             else:
                 self.add_label(tag.split("-")[1])
 
-        self.model.initialize(Y=id_to_tag)
+        self.model.initialize(
+            Y=({i: tag for i, tag in enumerate(id_to_tag)}, None),
+        )
 
         self.cfg["tag_to_id"] = tag_to_id
         self.cfg["id_to_tag"] = id_to_tag
