@@ -34,7 +34,7 @@ partial_ner = "spacy_partial_tagger.pipeline:make_partial_ner"
 
 [tool.poetry.plugins.spacy_architectures]
 "spacy-partial-tagger.PartialTagger.v1" = "spacy_partial_tagger.architecture:build_partial_tagger"
-"spacy-partial-tagger.Tok2VecTransformer.v1" = "spacy_partial_tagger.layers.tok2vec_transformer:build_tok2vec_transformer"
+"spacy-partial-tagger.Tok2MisalignedVecTransformer.v1" = "spacy_partial_tagger.layers.tok2vec_transformer:build_tok2misaligned_vec_transformer"
 
 [tool.poetry.plugins.spacy_label_indexers]
 "spacy-partial-tagger.RoBERTaLabelIndexer.v1" = "spacy_partial_tagger.label_indexers:configure_roberta_label_indexer"
