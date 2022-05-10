@@ -5,6 +5,7 @@ from spacy import Language
 from spacy.tokens import Doc, Span
 
 from spacy_partial_tagger.label_indexers import configure_roberta_label_indexer
+from spacy_partial_tagger.aligners import PassThroughAligner
 
 
 @pytest.fixture
@@ -21,6 +22,6 @@ def test_roberta_label_indexer(docs: List[Doc]) -> None:
     label_indexer = configure_roberta_label_indexer(padding_index, unknown_index)
     tag_to_id = {"O": 0, "U-LOC": 1}
 
-    tag_indices = label_indexer(docs, tag_to_id)
+    tag_indices = label_indexer(docs, tag_to_id, [PassThroughAligner()] * len(docs))
 
     assert tag_indices == [[0, 1, -100, -100, -100, -100, 1, -100, 0]]
