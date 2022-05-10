@@ -1,4 +1,4 @@
-from typing import Callable, Iterable, List
+from typing import Callable, Iterable, List, Tuple
 
 import srsly
 from spacy import util
@@ -13,6 +13,7 @@ from thinc.model import Model
 from thinc.optimizers import Optimizer
 from thinc.types import Floats2d, Floats4d, Ints1d
 
+from .aligners import Aligner
 from .label_indexers import LabelIndexer
 from .loss import ExpectedEntityRatioLoss
 
@@ -69,17 +70,28 @@ class PartialEntityRecognizer(TrainablePipe):
     def _get_lengths_from_docs(self, docs: List[Doc]) -> Ints1d:
         return self.model.ops.asarray1i([len(doc) for doc in docs])
 
-    def predict(self, docs: List[Doc]) -> Floats2d:
+    def predict(self, docs: List[Doc]) -> Tuple[Floats2d, List[Aligner]]:
         lengths = self._get_lengths_from_docs(docs)
-        _, guesses = self.model.predict((docs, lengths))
-        return guesses
+        (_, guesses), aligners = self.model.predict((docs, lengths))
+        return (guesses, aligners)
 
-    def set_annotations(self, docs: List[Doc], batch_tag_indices: Floats2d) -> None:
-        for doc, tag_indices in zip(docs, batch_tag_indices.tolist()):
+    def set_annotations(
+        self,
+        docs: List[Doc],
+        batch_tag_indices_aligners: Tuple[Floats2d, List[Aligner]],
+    ) -> None:
+        batch_tag_indices, aligners = batch_tag_indices_aligners
+        for doc, tag_indices, aligner in zip(
+            docs, batch_tag_indices.tolist(), aligners
+        ):
             tags = []
-            for index in tag_indices[: len(doc)]:
+            for index in tag_indices:
+                if index == self.padding_index:
+                    break
                 tags.append(self.id_to_tag[index])
-            doc.ents = biluo_tags_to_spans(doc, tags)  # type:ignore
+            doc.ents = biluo_tags_to_spans(
+                doc, aligner.from_subword(tags, len(doc))
+            )  # type:ignore
 
     def update(
         self,
@@ -94,9 +106,11 @@ class PartialEntityRecognizer(TrainablePipe):
         losses.setdefault(self.name, 0.0)
         docs = [example.x for example in examples]
         lengths = self._get_lengths_from_docs(docs)
-        (log_potentials, _), backward = self.model.begin_update((docs, lengths))
-        loss, grad = self.get_loss(examples, log_potentials)
-        backward(grad)
+        ((log_potentials, _), aligners), backward = self.model.begin_update(
+            (docs, lengths)
+        )
+        loss, grad = self.get_loss(examples, (log_potentials, aligners))
+        backward((grad, None))
         if sgd is not None:
             self.finish_update(sgd)
         losses[self.name] += loss
@@ -132,13 +146,18 @@ class PartialEntityRecognizer(TrainablePipe):
         self.cfg["id_to_tag"] = id_to_tag
         self.cfg["outside_index"] = tag_to_id["O"]
 
-    def get_loss(self, examples: Iterable[Example], scores: Floats4d) -> tuple:
+    def get_loss(
+        self,
+        examples: Iterable[Example],
+        scores_aligners: Tuple[Floats4d, List[Aligner]],
+    ) -> tuple:
+        scores, aligners = scores_aligners
         padding_index = self.padding_index
         unknown_index = self.unknown_index
         outside_index = self.outside_index
         loss_func = ExpectedEntityRatioLoss(padding_index, unknown_index, outside_index)
         tag_indices = self.label_indexer(
-            [example.y for example in examples], self.tag_to_id
+            [example.y for example in examples], self.tag_to_id, aligners
         )
         truths = self.model.ops.asarray(tag_indices)  # type:ignore
         grad, loss = loss_func(scores, truths)  # type:ignore

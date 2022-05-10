@@ -9,11 +9,12 @@ from thinc.types import Floats2d, Floats3d, Floats4d, Ints1d, Ints2d
 
 from spacy_partial_tagger.layers.crf import CRF
 from spacy_partial_tagger.layers.decoder import ConstrainedDecoder, get_constraints
+from spacy_partial_tagger.restructure import with_restructure
 
 
 @registry.architectures.register("spacy-partial-tagger.PartialTagger.v1")
 def build_partial_tagger(
-    tok2vec: Model[List[Doc], List[Floats2d]],
+    tok2vec: Model[List[Doc], Tuple[List[Floats2d], list]],
     nI: int,
     nO: Optional[int] = None,
     *,
@@ -38,10 +39,17 @@ def build_partial_tagger(
 
     model: Model = chain(
         cast(
-            Model[Tuple[List[Doc], Ints1d], Tuple[List[Floats2d], Ints1d]],
+            Model[Tuple[List[Doc], Ints1d], Tuple[Tuple[List[Floats2d], list], Ints1d]],
             with_getitem(0, tok2vec),
         ),
-        partial_tagger,
+        with_restructure(),
+        cast(
+            Model[
+                Tuple[Tuple[List[Floats2d], Ints1d], list],
+                Tuple[Tuple[Floats4d, Floats2d], list],
+            ],
+            with_getitem(0, partial_tagger),
+        ),
     )
     return model
 

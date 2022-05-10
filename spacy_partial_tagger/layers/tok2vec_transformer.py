@@ -6,8 +6,11 @@ from spacy.util import List, registry
 from thinc.api import ArgsKwargs, Model, torch2xp, xp2torch
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
 from thinc.types import Floats2d, Floats3d
+from tokenizations import get_alignments
 from torch.nn import Module
 from transformers import AutoModel, AutoTokenizer, BatchEncoding
+
+from ..aligners import TransformerAligner
 
 
 class TransformersWrapper(Module):
@@ -22,17 +25,17 @@ class TransformersWrapper(Module):
         return outputs, lengths
 
 
-@registry.architectures.register("spacy-partial-tagger.Tok2VecTransformer.v1")
-def build_tok2vec_transformer(
+@registry.architectures.register("spacy-partial-tagger.Tok2MisalignedVecTransformer.v1")
+def build_tok2misaligned_vec_transformer(
     model_name: str,
     chunk_size: int = 0,
     max_length: Optional[int] = None,
     *,
     mixed_precision: bool = False,
     grad_scaler: Optional[PyTorchGradScaler] = None
-) -> Model[List[Doc], List[Floats2d]]:
+) -> Model[List[Doc], Tuple[List[Floats2d], list]]:
     return Model(
-        "tok2vec_transformer",
+        "tok2misaligned_vec_transformer",
         forward=forward,
         init=init,
         dims={"nI": None, "nO": None},
@@ -81,7 +84,7 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
         padding = "longest"
     X = tokenizer(
         texts,
-        add_special_tokens=False,
+        add_special_tokens=True,
         return_token_type_ids=True,
         return_attention_mask=True,
         return_tensors="pt",
@@ -89,8 +92,16 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
         max_length=max_length,
         truncation=False,
     )
+    wordpieces = [
+        tokenizer.convert_ids_to_tokens(ids, skip_special_tokens=False)
+        for ids in X.input_ids
+    ]
+    aligners = [
+        TransformerAligner(get_alignments(list(text), wordpiece)[1])
+        for text, wordpiece in zip(texts, wordpieces)
+    ]
     Y, backward = model.layers[0](X, is_train)
-    return Y, backward
+    return (Y, aligners), backward
 
 
 def convert_transformer_outputs(
@@ -101,8 +112,8 @@ def convert_transformer_outputs(
 
     _, (Yt, Lt) = inputs_outputs
 
-    def convert_for_torch_backward(dY: List[Floats2d]) -> ArgsKwargs:
-        dY_t = xp2torch(pad(dY, round_to=Yt.size(1)))
+    def convert_for_torch_backward(dY: Tuple[List[Floats2d], list]) -> ArgsKwargs:
+        dY_t = xp2torch(pad(dY[0], round_to=Yt.size(1)))
         return ArgsKwargs(args=(Yt,), kwargs={"grad_tensors": dY_t})  # type:ignore
 
     Y = cast(Floats3d, torch2xp(Yt))

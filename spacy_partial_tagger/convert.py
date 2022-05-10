@@ -4,91 +4,58 @@ from argparse import ArgumentParser
 from typing import List, Tuple
 
 import spacy
-from spacy.tokens import DocBin
+from spacy.tokens import Doc, DocBin
 from spacy.training.iob_utils import biluo_tags_to_spans
-
-from .tokenizer import TransformerTokenizer
 
 
 def converter(
-    tokens: List[str],
-    text: str,
-    subwords: List[str],
-    annotations: List[dict],
-    offset: int = 0,
-) -> List[Tuple[int, int, str]]:
-    """Converts annotations from token-based to subword-based.
-
+    tokens: List[str], annotations: List[dict]
+) -> Tuple[List[str], List[Tuple[int, int, str]]]:
+    """Converts data from token-based to character-based.
     Args:
         tokens: A list of tokens.
-        text: A text.
-        subwords: A list of subowrds.
         annotations: A list of dictionaries represent a named entity  annotation.
         Each dictionary should have start/end/type keys. Start and end represent
         start position and end position respectively. Type represents a label of
         a named entity.
-
     Returns:
-        A list of subword-based annotations.
+        A tuple of converted data.
     """
 
-    # TODO: Split into some functions
-    char_tokens = list(text)
-
-    char_index_to_subword_index: list = [-1] * len(char_tokens)
-    now = 0
-    for i, subword in enumerate(subwords):
-        for char in subword:
-            now = char_tokens.index(char, now)
-            char_index_to_subword_index[now] = i
-            now += 1
-    token_index_to_subword_index: list = [[] for _ in range(len(tokens))]
+    char_tokens = list(" ".join(tokens))
+    token_index_to_char_index: list = [[] for _ in range(len(tokens))]
     now = 0
     for i, token in enumerate(tokens):
         for char in token:
             now = char_tokens.index(char, now)
-            if (
-                not token_index_to_subword_index[i]
-                or token_index_to_subword_index[i][-1]
-                != char_index_to_subword_index[now]
-            ):
-                token_index_to_subword_index[i].append(char_index_to_subword_index[now])
+            token_index_to_char_index[i].append(now)
             now += 1
-        assert (
-            token
-            == "".join(subwords[j] for j in token_index_to_subword_index[i]).strip()
+        assert token == "".join(
+            char_tokens[
+                token_index_to_char_index[i][0] : token_index_to_char_index[i][-1] + 1
+            ]
         )
-    subword_annotations = [
+    char_annotations = [
         # [start, end)
         (
-            token_index_to_subword_index[annotation["start"]][0] + offset,
-            token_index_to_subword_index[annotation["end"] - 1][-1] + 1 + offset,
+            token_index_to_char_index[annotation["start"]][0],
+            token_index_to_char_index[annotation["end"] - 1][-1] + 1,
             annotation["type"],
         )
         for annotation in annotations
     ]
-    return subword_annotations
+    return char_tokens, char_annotations
 
 
-def main(input_path: str, output_path: str, lang: str, model_name: str) -> None:
+def main(input_path: str, output_path: str, lang: str) -> None:
 
-    print("Initializing...")
     nlp = spacy.blank(lang)
-    tokenizer = TransformerTokenizer(nlp.vocab, model_name)
     db = DocBin()
 
-    print("Processing...")
     with open(input_path) as f:
         for data in map(json.loads, f):
-            subwords = tokenizer(" ".join(data["tokens"]))
-            annotations = converter(
-                data["tokens"],
-                subwords[1:-1].text,
-                [subword.text for subword in subwords[1:-1]],
-                data["gold_annotations"],
-                offset=1,
-            )
-            tags = ["O"] * len(subwords)
+            tokens, annotations = converter(data["tokens"], data["gold_annotations"])
+            tags = ["O"] * len(tokens)
             for start, end, entity in annotations:
                 if any(tag != "O" for tag in tags[start:end]):
                     continue
@@ -100,8 +67,13 @@ def main(input_path: str, output_path: str, lang: str, model_name: str) -> None:
                     + [f"I-{entity}"] * (end - start - 2)
                     + [f"L-{entity}"]
                 )
-            subwords.ents = biluo_tags_to_spans(subwords, tags)  # type:ignore
-            db.add(subwords)
+            doc = Doc(
+                nlp.vocab,
+                words=tokens,
+                spaces=[False] * len(tokens),
+            )
+            doc.ents = biluo_tags_to_spans(doc, tags)  # type:ignore
+            db.add(doc)
 
     db.to_disk(output_path)
 
@@ -109,12 +81,6 @@ def main(input_path: str, output_path: str, lang: str, model_name: str) -> None:
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--lang", type=str, default="en", help="Language")
-    parser.add_argument(
-        "--model_name",
-        type=str,
-        default="distilroberta-base",
-        help="Transformers model name",
-    )
     parser.add_argument("--input", type=str, required=True, help="An input file path")
     parser.add_argument("--output", type=str, default=None, help="An output file path")
 
@@ -126,4 +92,4 @@ if __name__ == "__main__":
     else:
         output = args.output
 
-    main(args.input, output, args.lang, args.model_name)
+    main(args.input, output, args.lang)
