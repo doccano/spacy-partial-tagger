@@ -4,8 +4,8 @@ import pytest
 from spacy import Language
 from spacy.tokens import Doc, Span
 
-from spacy_partial_tagger.label_indexers import configure_roberta_label_indexer
 from spacy_partial_tagger.aligners import PassThroughAligner
+from spacy_partial_tagger.label_indexers import configure_roberta_label_indexer
 
 
 @pytest.fixture
