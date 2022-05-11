@@ -193,7 +193,7 @@ class PartialEntityRecognizer(TrainablePipe):
         )
 
         util.from_bytes(bytes_data, deserialize, exclude)
-        self.model.initialize(Y=self.id_to_tag)
+        self.model.initialize(Y={i: tag for i, tag in enumerate(self.id_to_tag)})
 
         model_deserializers = {
             "model": lambda b: self.model.from_bytes(b),
@@ -220,7 +220,7 @@ class PartialEntityRecognizer(TrainablePipe):
             p, exclude=exclude
         )
         util.from_disk(path, deserialize, exclude)
-        self.model.initialize(Y=self.id_to_tag)
+        self.model.initialize(Y={i: tag for i, tag in enumerate(self.id_to_tag)})
         model_deserializers = {
             "model": load_model,
         }
