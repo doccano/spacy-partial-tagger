@@ -25,8 +25,8 @@ class TransformersWrapper(Module):
         return outputs, lengths
 
 
-@registry.architectures.register("spacy-partial-tagger.Tok2MisalignedVecTransformer.v1")
-def build_tok2misaligned_vec_transformer(
+@registry.architectures.register("spacy-partial-tagger.MisalignedTok2VecTransformer.v1")
+def build_misaligned_tok2vec_transformer(
     model_name: str,
     chunk_size: int = 0,
     max_length: Optional[int] = None,
@@ -35,7 +35,7 @@ def build_tok2misaligned_vec_transformer(
     grad_scaler: Optional[PyTorchGradScaler] = None
 ) -> Model[List[Doc], Tuple[List[Floats2d], list]]:
     return Model(
-        "tok2misaligned_vec_transformer",
+        "misaligned_tok2vec_transformer",
         forward=forward,
         init=init,
         dims={"nI": None, "nO": None},
@@ -112,7 +112,10 @@ def convert_transformer_outputs(
 
     _, (Yt, Lt) = inputs_outputs
 
-    def convert_for_torch_backward(dY: Tuple[List[Floats2d], list]) -> ArgsKwargs:
+    def convert_for_torch_backward(
+        dY: Tuple[List[Floats2d], List[TransformerAligner]]
+    ) -> ArgsKwargs:
+        # Ignore gradients for aligners
         dY_t = xp2torch(pad(dY[0], round_to=Yt.size(1)))
         return ArgsKwargs(args=(Yt,), kwargs={"grad_tensors": dY_t})  # type:ignore
 

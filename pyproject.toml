@@ -12,6 +12,7 @@ transformers = "4.17"
 torch = "^1.11.0"
 partial-tagger = {path = "partial-tagger"}
 allennlp = "^2.9.2"
+pytokenizations = "^0.8.4"
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"
@@ -34,7 +35,7 @@ partial_ner = "spacy_partial_tagger.pipeline:make_partial_ner"
 
 [tool.poetry.plugins.spacy_architectures]
 "spacy-partial-tagger.PartialTagger.v1" = "spacy_partial_tagger.architecture:build_partial_tagger"
-"spacy-partial-tagger.Tok2MisalignedVecTransformer.v1" = "spacy_partial_tagger.layers.tok2vec_transformer:build_tok2misaligned_vec_transformer"
+"spacy-partial-tagger.MisalignedTok2VecTransformer.v1" = "spacy_partial_tagger.layers.tok2vec_transformer:build_misaligned_tok2vec_transformer"
 
 [tool.poetry.plugins.spacy_label_indexers]
 "spacy-partial-tagger.RoBERTaLabelIndexer.v1" = "spacy_partial_tagger.label_indexers:configure_roberta_label_indexer"

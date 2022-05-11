@@ -110,6 +110,7 @@ class PartialEntityRecognizer(TrainablePipe):
             (docs, lengths)
         )
         loss, grad = self.get_loss(examples, (log_potentials, aligners))
+        # None is dummy gradients for aligners
         backward((grad, None))
         if sgd is not None:
             self.finish_update(sgd)
