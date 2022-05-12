@@ -122,7 +122,10 @@ class PartialEntityRecognizer(TrainablePipe):
     ) -> None:
         tag_to_id: dict = {"O": 0}
         id_to_tag: list = ["O"]
+        X_small: List[Doc] = []
         for example in get_examples():
+            if len(X_small) < 10:
+                X_small.append(example.x)
             tags = []
             for token in example.y:
                 if token.ent_iob_ != "O":
@@ -142,6 +145,7 @@ class PartialEntityRecognizer(TrainablePipe):
                 self.add_label(tag.split("-")[1])
 
         self.model.initialize(
+            X=(X_small, self._get_lengths_from_docs(X_small)),
             Y=({i: tag for i, tag in enumerate(id_to_tag)}, None),
         )
 
