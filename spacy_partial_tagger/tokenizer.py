@@ -4,7 +4,6 @@ from spacy import util
 from spacy.language import Language
 from spacy.tokens import Doc
 from spacy.vocab import Vocab
-from transformers import AutoTokenizer
 
 
 class CharacterTokenizer:
@@ -19,7 +18,7 @@ class CharacterTokenizer:
         return b""
 
     def to_disk(self, path: str, **kwargs: Any) -> None:
-        ...
+        return
 
     def from_bytes(
         self, bytes_data: bytes, *, exclude: tuple = tuple()
