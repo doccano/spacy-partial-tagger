@@ -264,7 +264,7 @@ DEFAULT_NER_MODEL = Config().from_str(default_model_config)["model"]
         "model": DEFAULT_NER_MODEL,
         "scorer": {"@scorers": "spacy.ner_scorer.v1"},
         "label_indexer": {
-            "@label_indexers": "spacy-partial-tagger.RoBERTaLabelIndexer.v1",
+            "@label_indexers": "spacy-partial-tagger.TransformerLabelIndexer.v1",
             "padding_index": -1,
             "unknown_index": -100,
         },
