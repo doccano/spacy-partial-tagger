@@ -1,23 +1,45 @@
-import pytest
-from spacy import Language
-
 from spacy_partial_tagger.convert import converter
-from spacy_partial_tagger.tokenizer import TransformerTokenizer
 
 
-@pytest.fixture
-def transformer_tokenizer(nlp: Language) -> TransformerTokenizer:
-    return TransformerTokenizer(nlp.vocab, "distilroberta-base")
-
-
-def test_converter(transformer_tokenizer: TransformerTokenizer) -> None:
-    tokens = ["Tokyo", "is", "the", "capital", "of", "Japan", "."]
-    text = "Tokyo is the capital of Japan."
-    subwords = [subword.text for subword in transformer_tokenizer(text)]
+def test_converter() -> None:
+    tokens = ["Tim", "Cook", "is", "the", "CEO", "of", "Apple", "."]
     annotations = [
-        {"start": 0, "end": 1, "type": "LOC"},
-        {"start": 5, "end": 6, "type": "LOC"},
+        {"start": 0, "end": 2, "type": "PER"},
+        {"start": 6, "end": 7, "type": "ORG"},
     ]
-    subword_annotations = converter(tokens, text, subwords[1:-1], annotations, offset=1)
+    char_tokens, char_annotations = converter(tokens, annotations)
 
-    assert subword_annotations == [(1, 3, "LOC"), (7, 8, "LOC")]
+    assert char_tokens == [
+        "T",
+        "i",
+        "m",
+        " ",
+        "C",
+        "o",
+        "o",
+        "k",
+        " ",
+        "i",
+        "s",
+        " ",
+        "t",
+        "h",
+        "e",
+        " ",
+        "C",
+        "E",
+        "O",
+        " ",
+        "o",
+        "f",
+        " ",
+        "A",
+        "p",
+        "p",
+        "l",
+        "e",
+        " ",
+        ".",
+    ]
+
+    assert char_annotations == [(0, 8, "PER"), (23, 28, "ORG")]

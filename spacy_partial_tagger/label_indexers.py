@@ -4,12 +4,15 @@ from typing import Dict, List
 from spacy.tokens import Doc
 from spacy.training.iob_utils import iob_to_biluo
 
+from .aligners import Aligner
 from .util import registry
 
 
 class LabelIndexer(ABC):
     @abstractmethod
-    def __call__(self, docs: List[Doc], tag_to_id: Dict[str, int]) -> List[List[int]]:
+    def __call__(
+        self, docs: List[Doc], tag_to_id: Dict[str, int], aligners: List[Aligner]
+    ) -> List[List[int]]:
         pass
 
 
@@ -18,9 +21,11 @@ class RoBERTaLabelIndexer(LabelIndexer):
         self.padding_index = padding_index
         self.unknown_index = unknown_index
 
-    def __call__(self, docs: List[Doc], tag_to_id: Dict[str, int]) -> List[List[int]]:
+    def __call__(
+        self, docs: List[Doc], tag_to_id: Dict[str, int], aligners: List[Aligner]
+    ) -> List[List[int]]:
         batch_tag_indices = []
-        for doc in docs:
+        for doc, aligner in zip(docs, aligners):
             tags = iob_to_biluo(
                 [
                     f"{token.ent_iob_}-{token.ent_type_}"
@@ -29,6 +34,7 @@ class RoBERTaLabelIndexer(LabelIndexer):
                     for token in doc
                 ]
             )
+            tags = aligner.to_subword(tags)
             # Indexing
             tag_indices = [
                 tag_to_id[tag] if tag != "O" else self.unknown_index for tag in tags
