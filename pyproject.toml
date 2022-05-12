@@ -31,7 +31,6 @@ partial_ner = "spacy_partial_tagger.pipeline:make_partial_ner"
 
 [tool.poetry.plugins.spacy_tokenizers]
 "character_tokenizer.v1" = "spacy_partial_tagger.tokenizer:create_character_tokenizer"
-"transformer_tokenizer.v1" = "spacy_partial_tagger.tokenizer:create_transformer_tokenizer"
 
 [tool.poetry.plugins.spacy_architectures]
 "spacy-partial-tagger.PartialTagger.v1" = "spacy_partial_tagger.architecture:build_partial_tagger"
