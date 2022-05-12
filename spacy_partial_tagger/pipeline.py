@@ -239,20 +239,14 @@ class PartialEntityRecognizer(TrainablePipe):
 default_model_config = """
 [model]
 @architectures = "spacy-partial-tagger.PartialTagger.v1"
-nI = 300
+nI = 768
 nO = null
 dropout = 0.2
 padding_index = -1
 
-[model.tok2vec]
-@architectures = "spacy.HashEmbedCNN.v2"
-pretrained_vectors = null
-width = 96
-depth = 4
-embed_size = 300
-window_size = 1
-maxout_pieces = 3
-subword_features = true
+[model.misaligned_tok2vec]
+@architectures = "spacy-partial-tagger.MisalignedTok2VecTransformer.v1"
+model_name = "roberta-base"
 """
 DEFAULT_NER_MODEL = Config().from_str(default_model_config)["model"]
 
