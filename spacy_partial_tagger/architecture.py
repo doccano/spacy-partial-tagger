@@ -7,14 +7,15 @@ from thinc.api import ArgsKwargs, Model, chain, torch2xp, with_getitem, xp2torch
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
 from thinc.types import Floats2d, Floats3d, Floats4d, Ints1d, Ints2d
 
-from spacy_partial_tagger.layers.crf import CRF
-from spacy_partial_tagger.layers.decoder import ConstrainedDecoder, get_constraints
-from spacy_partial_tagger.restructure import with_restructure
+from .aligners import Aligner
+from .layers.crf import CRF
+from .layers.decoder import ConstrainedDecoder, get_constraints
+from .restructure import with_restructure
 
 
 @registry.architectures.register("spacy-partial-tagger.PartialTagger.v1")
 def build_partial_tagger(
-    tok2vec: Model[List[Doc], Tuple[List[Floats2d], list]],
+    tok2vec: Model[List[Doc], Tuple[List[Floats2d], List[Aligner]]],
     nI: int,
     nO: Optional[int] = None,
     *,
