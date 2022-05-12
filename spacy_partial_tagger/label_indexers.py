@@ -16,7 +16,7 @@ class LabelIndexer(ABC):
         pass
 
 
-class RoBERTaLabelIndexer(LabelIndexer):
+class TransformerLabelIndexer(LabelIndexer):
     def __init__(self, padding_index: int, unknown_index: int) -> None:
         self.padding_index = padding_index
         self.unknown_index = unknown_index
@@ -50,8 +50,10 @@ class RoBERTaLabelIndexer(LabelIndexer):
         ]
 
 
-@registry.label_indexers("spacy-partial-tagger.RoBERTaLabelIndexer.v1")  # type:ignore
-def configure_roberta_label_indexer(
+@registry.label_indexers(  # type:ignore
+    "spacy-partial-tagger.TransformerLabelIndexer.v1"
+)
+def configure_transformer_label_indexer(
     padding_index: int, unknown_index: int
-) -> RoBERTaLabelIndexer:
-    return RoBERTaLabelIndexer(padding_index, unknown_index)
+) -> TransformerLabelIndexer:
+    return TransformerLabelIndexer(padding_index, unknown_index)

@@ -19,6 +19,8 @@ class PassThroughAligner(Aligner):
         return tags
 
     def from_subword(self, subword_tags: List[str], length: int) -> List[str]:
+        if len(subword_tags) != length:
+            raise ValueError("The length of subword_tags should equal to length.")
         return subword_tags
 
 

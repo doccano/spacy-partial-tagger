@@ -15,7 +15,7 @@ from .restructure import with_restructure
 
 @registry.architectures.register("spacy-partial-tagger.PartialTagger.v1")
 def build_partial_tagger(
-    tok2vec: Model[List[Doc], Tuple[List[Floats2d], List[Aligner]]],
+    misaligned_tok2vec: Model[List[Doc], Tuple[List[Floats2d], List[Aligner]]],
     nI: int,
     nO: Optional[int] = None,
     *,
@@ -48,7 +48,7 @@ def build_partial_tagger(
     model: Model = chain(
         cast(
             Model[Tuple[List[Doc], Ints1d], Tuple[Tuple[List[Floats2d], list], Ints1d]],
-            with_getitem(0, tok2vec),
+            with_getitem(0, misaligned_tok2vec),
         ),
         with_restructure(),
         cast(
