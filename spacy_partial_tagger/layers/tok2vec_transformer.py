@@ -33,7 +33,7 @@ def build_misaligned_tok2vec_transformer(
     *,
     mixed_precision: bool = False,
     grad_scaler: Optional[PyTorchGradScaler] = None
-) -> Model[List[Doc], Tuple[List[Floats2d], list]]:
+) -> Model[List[Doc], Tuple[List[Floats2d], List[TransformerAligner]]]:
     return Model(
         "misaligned_tok2vec_transformer",
         forward=forward,
@@ -43,7 +43,6 @@ def build_misaligned_tok2vec_transformer(
             "model_name": model_name,
             "chunk_size": chunk_size,
             "max_length": max_length,
-            "tokenizer": AutoTokenizer.from_pretrained(model_name),
             "mixed_precision": mixed_precision,
             "grad_scaler": grad_scaler,
         },
@@ -54,13 +53,17 @@ def init(model: Model, X: Any = None, Y: Any = None) -> None:
     if model.layers:
         return
 
+    model_name = model.attrs["model_name"]
+
+    model.attrs["tokenizer"] = AutoTokenizer.from_pretrained(model_name)
+
     PyTorchWrapper = registry.get("layers", "PyTorchWrapper.v2")
 
     mixed_precision = model.attrs["mixed_precision"]
     grad_scaler = model.attrs["grad_scaler"]
 
     pytorch_model = AutoModel.from_pretrained(
-        model.attrs["model_name"], chunk_size_feed_forward=model.attrs["chunk_size"]
+        model_name, chunk_size_feed_forward=model.attrs["chunk_size"]
     )
 
     transformer = PyTorchWrapper(

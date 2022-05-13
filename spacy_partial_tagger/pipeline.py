@@ -91,7 +91,7 @@ class PartialEntityRecognizer(TrainablePipe):
                     break
                 tags.append(self.id_to_tag[index])
             doc.ents = biluo_tags_to_spans(
-                doc, aligner.from_subword(tags, len(doc))
+                doc, aligner.from_subword(tags)
             )  # type:ignore
 
     def update(
