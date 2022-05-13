@@ -47,14 +47,17 @@ def build_partial_tagger(
 
     model: Model = chain(
         cast(
-            Model[Tuple[List[Doc], Ints1d], Tuple[Tuple[List[Floats2d], list], Ints1d]],
+            Model[
+                Tuple[List[Doc], Ints1d],
+                Tuple[Tuple[List[Floats2d], List[Aligner]], Ints1d],
+            ],
             with_getitem(0, misaligned_tok2vec),
         ),
         with_restructure(),
         cast(
             Model[
-                Tuple[Tuple[List[Floats2d], Ints1d], list],
-                Tuple[Tuple[Floats4d, Floats2d], list],
+                Tuple[Tuple[List[Floats2d], Ints1d], List[Aligner]],
+                Tuple[Tuple[Floats4d, Floats2d], List[Aligner]],
             ],
             partial_tagger,
         ),
