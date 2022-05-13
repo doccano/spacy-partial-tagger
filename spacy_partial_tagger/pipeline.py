@@ -7,6 +7,7 @@ from spacy.language import Language
 from spacy.pipeline import TrainablePipe
 from spacy.tokens import Doc
 from spacy.training import Example, biluo_tags_to_spans, iob_to_biluo
+from spacy.training.iob_utils import doc_to_biluo_tags
 from spacy.vocab import Vocab
 from thinc.config import Config
 from thinc.model import Model
@@ -157,15 +158,19 @@ class PartialEntityRecognizer(TrainablePipe):
         self,
         examples: Iterable[Example],
         scores_aligners: Tuple[Floats4d, List[Aligner]],
-    ) -> tuple:
+    ) -> Tuple[float, Floats4d]:
         scores, aligners = scores_aligners
         padding_index = self.padding_index
         unknown_index = self.unknown_index
         outside_index = self.outside_index
         loss_func = ExpectedEntityRatioLoss(padding_index, unknown_index, outside_index)
-        tag_indices = self.label_indexer(
-            [example.y for example in examples], self.tag_to_id, aligners
-        )
+        batch_tags = []
+        for example, aligner in zip(examples, aligners):
+            tags = doc_to_biluo_tags(example.y)
+            tags_aligned = aligner.to_subword(tags)
+            batch_tags.append(tags_aligned)
+
+        tag_indices = self.label_indexer(batch_tags, self.tag_to_id)
         truths = self.model.ops.asarray(tag_indices)  # type:ignore
         grad, loss = loss_func(scores, truths)  # type:ignore
         return loss.item(), grad  # type:ignore
