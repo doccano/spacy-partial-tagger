@@ -6,7 +6,7 @@ def test_pass_through_aligner() -> None:
     aligner = PassThroughAligner()
 
     assert aligner.to_subword(tags) == tags
-    assert aligner.from_subword(tags, len(tags)) == tags
+    assert aligner.from_subword(tags) == tags
 
 
 def test_transformer_aligner() -> None:
@@ -61,4 +61,4 @@ def test_transformer_aligner() -> None:
     )
 
     assert aligner.to_subword(tags) == tags_subword
-    assert aligner.from_subword(tags_subword, len(tags)) == tags
+    assert aligner.from_subword(tags_subword) == tags
