@@ -6,8 +6,8 @@ from spacy.errors import Errors
 from spacy.language import Language
 from spacy.pipeline import TrainablePipe
 from spacy.tokens import Doc
-from spacy.training import Example, biluo_tags_to_spans, iob_to_biluo
-from spacy.training.iob_utils import doc_to_biluo_tags
+from spacy.training import Example
+from spacy.training.iob_utils import biluo_tags_to_spans, doc_to_biluo_tags
 from spacy.vocab import Vocab
 from thinc.config import Config
 from thinc.model import Model
@@ -127,14 +127,7 @@ class PartialEntityRecognizer(TrainablePipe):
         for example in get_examples():
             if len(X_small) < 10:
                 X_small.append(example.x)
-            tags = []
-            for token in example.y:
-                if token.ent_iob_ != "O":
-                    tag = f"{token.ent_iob_}-{token.ent_type_}"
-                else:
-                    tag = token.ent_iob_
-                tags.append(tag)
-            for tag in iob_to_biluo(tags):
+            for tag in doc_to_biluo_tags(example.y):
                 if tag not in tag_to_id:
                     id_to_tag.append(tag)
                     tag_to_id[tag] = len(tag_to_id)
