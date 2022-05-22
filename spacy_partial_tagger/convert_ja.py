@@ -12,7 +12,7 @@ from tokenizations import get_alignments
 
 from .convert import converter
 
-jumanpp = Juman()
+jumanpp = Juman("etc/bin/jumanpp")
 
 
 def tokenize(text: str) -> List[str]:
@@ -33,8 +33,7 @@ def load_from_conllu(
                 tokens.append(han_to_zen(x["form"]))
                 text += x["form"]
                 if x["misc"]["SpaceAfter"] == "Yes":
-                    # Use full-width space
-                    text += "　"
+                    text += " "
             text = han_to_zen(text)
             tokens_juman = tokenize(text)
             # x: original tokens
@@ -42,6 +41,9 @@ def load_from_conllu(
             x2y, _ = get_alignments(tokens, tokens_juman)
             annotations = []
             for label, start, end in tags_to_entities(tags):
+                # assert "".join(tokens[start : end + 1]) == "".join(
+                #     tokens_juman[x2y[start][0] : x2y[end][-1] + 1]
+                # )
                 annotations.append(
                     {"start": x2y[start][0], "end": x2y[end][-1] + 1, "type": label}
                 )
