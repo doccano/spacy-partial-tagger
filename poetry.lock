@@ -298,6 +298,18 @@ pycodestyle = ">=2.8.0,<2.9.0"
 pyflakes = ">=2.4.0,<2.5.0"
 
 [[package]]
+name = "fugashi"
+version = "1.1.2"
+description = "A Cython MeCab wrapper for fast, pythonic Japanese tokenization."
+category = "main"
+optional = false
+python-versions = ">=3.5"
+
+[package.extras]
+unidic = ["unidic"]
+unidic-lite = ["unidic-lite"]
+
+[[package]]
 name = "gitdb"
 version = "4.0.9"
 description = "Git Object Database"
@@ -475,6 +487,14 @@ python-versions = ">=3.5"
 name = "iniconfig"
 version = "1.1.1"
 description = "iniconfig: brain-dead simple config-ini parsing"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
+name = "ipadic"
+version = "1.0.0"
+description = "IPAdic packaged for Python"
 category = "main"
 optional = false
 python-versions = "*"
@@ -718,6 +738,14 @@ python-versions = ">=3.7"
 [package.extras]
 docs = ["olefile", "sphinx (>=2.4)", "sphinx-copybutton", "sphinx-issues (>=3.0.1)", "sphinx-removed-in", "sphinx-rtd-theme (>=1.0)", "sphinxext-opengraph"]
 tests = ["check-manifest", "coverage", "defusedxml", "markdown2", "olefile", "packaging", "pyroma", "pytest", "pytest-cov", "pytest-timeout"]
+
+[[package]]
+name = "plac"
+version = "1.3.5"
+description = "The smartest command line arguments parser in the world"
+category = "main"
+optional = false
+python-versions = "*"
 
 [[package]]
 name = "platformdirs"
@@ -1405,7 +1433,9 @@ python-versions = ">=3.6.0"
 
 [package.dependencies]
 filelock = "*"
+fugashi = {version = ">=1.0", optional = true, markers = "extra == \"ja\""}
 huggingface-hub = ">=0.1.0,<1.0"
+ipadic = {version = ">=1.0.0,<2.0", optional = true, markers = "extra == \"ja\""}
 numpy = ">=1.17"
 packaging = ">=20.0"
 pyyaml = ">=5.1"
@@ -1414,6 +1444,8 @@ requests = "*"
 sacremoses = "*"
 tokenizers = ">=0.11.1,<0.11.3 || >0.11.3"
 tqdm = ">=4.27"
+unidic = {version = ">=1.0.2", optional = true, markers = "extra == \"ja\""}
+unidic-lite = {version = ">=1.0.7", optional = true, markers = "extra == \"ja\""}
 
 [package.extras]
 all = ["tensorflow (>=2.3)", "onnxconverter-common", "tf2onnx", "torch (>=1.0)", "jax (>=0.2.8)", "jaxlib (>=0.1.65)", "flax (>=0.3.5)", "optax (>=0.0.8)", "sentencepiece (>=0.1.91,!=0.1.92)", "protobuf", "tokenizers (>=0.11.1,!=0.11.3)", "torchaudio", "librosa", "pyctcdecode (>=0.3.0)", "phonemizer", "pillow", "optuna", "ray", "sigopt", "timm", "codecarbon (==1.2.0)"]
@@ -1480,6 +1512,28 @@ optional = false
 python-versions = ">=3.6"
 
 [[package]]
+name = "unidic"
+version = "1.1.0"
+description = "UniDic packaged for Python"
+category = "main"
+optional = false
+python-versions = ">=3.5"
+
+[package.dependencies]
+plac = ">=1.1.3,<2.0.0"
+requests = ">=2.22.0,<3.0.0"
+tqdm = ">=4.41.1,<5.0.0"
+wasabi = ">=0.6.0,<1.0.0"
+
+[[package]]
+name = "unidic-lite"
+version = "1.0.8"
+description = "A small version of UniDic packaged for Python"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "urllib3"
 version = "1.26.9"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
@@ -1537,7 +1591,7 @@ python-versions = "*"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "c79d8533bcdf9e7e90b827c43d8e59aa07f1e3108aa5bca497037c133b5170b3"
+content-hash = "a19c22199ddef991420977486e151d526e2fe301eebce1710d5ee94d003d1667"
 
 [metadata.files]
 allennlp = [
@@ -1719,6 +1773,31 @@ flake8 = [
     {file = "flake8-4.0.1-py2.py3-none-any.whl", hash = "sha256:479b1304f72536a55948cb40a32dce8bb0ffe3501e26eaf292c7e60eb5e0428d"},
     {file = "flake8-4.0.1.tar.gz", hash = "sha256:806e034dda44114815e23c16ef92f95c91e4c71100ff52813adf7132a6ad870d"},
 ]
+fugashi = [
+    {file = "fugashi-1.1.2-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:284f2bf161d32886ba2053d69d30d2f85c456df0ff4627100ded23a9411d2bab"},
+    {file = "fugashi-1.1.2-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:72ef05b96444d47c3c9dae6939e8e9b7ac4e01ee64733eafa57386f87ea302e4"},
+    {file = "fugashi-1.1.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f1b104531cc219bf9309e5d737a236e10f3c73b921b5c519ae1123f7a5b14421"},
+    {file = "fugashi-1.1.2-cp310-cp310-win_amd64.whl", hash = "sha256:4f255a7595e5cacfa2bd7a76be47508f8e3ced32303830d5a961a42c249386c0"},
+    {file = "fugashi-1.1.2-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:4a78ee7f28e48734cce71234089dfce16bda6d3bd5864ed80d1bc5701844f8e1"},
+    {file = "fugashi-1.1.2-cp36-cp36m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:8e02d75a3ec4753e2765e5caaf38a115d7746fe75c1d59f12a92eb6c2ecbbc7f"},
+    {file = "fugashi-1.1.2-cp36-cp36m-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ac740088b11e396f410d3491d4be0928624c1d0e9ec2e0009ae73f372068030b"},
+    {file = "fugashi-1.1.2-cp36-cp36m-win_amd64.whl", hash = "sha256:875efccf41874e022c8fdbeff66fa936874505cf57f0070f1e276bd3b02572a6"},
+    {file = "fugashi-1.1.2-cp37-cp37m-macosx_10_9_x86_64.whl", hash = "sha256:583f67d881cf6d8adaf68e1b69f891155e50fc9f1eb5e3fa71409be024b3be19"},
+    {file = "fugashi-1.1.2-cp37-cp37m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:5d71b8664f7bc7f8319cc65b12fbfd96e30efb8caa5020ede1f6c9b3aa6db721"},
+    {file = "fugashi-1.1.2-cp37-cp37m-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3660f5297f6c0da0ac483a731b4aca73ab625311c7783d375de30e7a9881ce54"},
+    {file = "fugashi-1.1.2-cp37-cp37m-win_amd64.whl", hash = "sha256:e19715c4aceb300e62687c4015340bbfd913142d7e64549bad4c8194d3e4b9e4"},
+    {file = "fugashi-1.1.2-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:a78513212db800d25063f923b62857380c36903848298cbb5cd6d4c029cb0bb1"},
+    {file = "fugashi-1.1.2-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:d1d514ca18b51bc20ebc3161904703fac521b1cb8a0ea0530810d124a080dfb2"},
+    {file = "fugashi-1.1.2-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7d2fd198cb86c8a6bf713d06bd05a8f72e99146453bc279dfeecb4bc986fe4e4"},
+    {file = "fugashi-1.1.2-cp38-cp38-win_amd64.whl", hash = "sha256:eaa85c641f530c072144b60c4943ba2aad89a8c569dcd445895eab980e95f50f"},
+    {file = "fugashi-1.1.2-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:188d395e94e81fcc6b4d81c947e52aa9a3158385795426edf8d366d6a5d86267"},
+    {file = "fugashi-1.1.2-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b272ae61b40bb15ccaf1c0d2f9703f3c74da8ceaf25e6126c5c7c08796bfa1b0"},
+    {file = "fugashi-1.1.2-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f50241a996bc88df6bf15cbd50bc918ff3822827709b695b692c84a84eaa0b26"},
+    {file = "fugashi-1.1.2-cp39-cp39-win_amd64.whl", hash = "sha256:39f71a4334de0a62bf0f5ae7d2fb1520264f55a47299006da559b172b74068fd"},
+    {file = "fugashi-1.1.2-pp37-pypy37_pp73-macosx_10_9_x86_64.whl", hash = "sha256:ce22b80522a52f803638bdce5323cee02097b60a873cecfcd0b5fee6f3d95cc5"},
+    {file = "fugashi-1.1.2-pp38-pypy38_pp73-macosx_10_9_x86_64.whl", hash = "sha256:a8330b8f8ef4555e4bf7df56bc5a88815b5f3c127c00f38915a970af46616f1b"},
+    {file = "fugashi-1.1.2.tar.gz", hash = "sha256:5e82fbf4fce097f7dc43c615e28aa4cb0417e5a68a665987e5cbf0882498056d"},
+]
 gitdb = [
     {file = "gitdb-4.0.9-py3-none-any.whl", hash = "sha256:8033ad4e853066ba6ca92050b9df2f89301b8fc8bf7e9324d412a63f8bf1a8fd"},
     {file = "gitdb-4.0.9.tar.gz", hash = "sha256:bac2fd45c0a1c9cf619e63a90d62bdc63892ef92387424b855792a6cabe789aa"},
@@ -1825,6 +1904,9 @@ idna = [
 iniconfig = [
     {file = "iniconfig-1.1.1-py2.py3-none-any.whl", hash = "sha256:011e24c64b7f47f6ebd835bb12a743f2fbe9a26d4cecaa7f53bc4f35ee9da8b3"},
     {file = "iniconfig-1.1.1.tar.gz", hash = "sha256:bc3af051d7d14b2ee5ef9969666def0cd1a000e121eaea580d4a313df4b37f32"},
+]
+ipadic = [
+    {file = "ipadic-1.0.0.tar.gz", hash = "sha256:f5923d31eca6131acaaf18ed28d8998665b1347b640d3a6476f64650e9a71c07"},
 ]
 isort = [
     {file = "isort-5.10.1-py3-none-any.whl", hash = "sha256:6f62d78e2f89b4500b080fe3a81690850cd254227f27f75c3a0c491a1f351ba7"},
@@ -2075,6 +2157,10 @@ pillow = [
     {file = "Pillow-9.1.0-pp38-pypy38_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c7110ec1701b0bf8df569a7592a196c9d07c764a0a74f65471ea56816f10e2c8"},
     {file = "Pillow-9.1.0-pp38-pypy38_pp73-win_amd64.whl", hash = "sha256:8d79c6f468215d1a8415aa53d9868a6b40c4682165b8cb62a221b1baa47db458"},
     {file = "Pillow-9.1.0.tar.gz", hash = "sha256:f401ed2bbb155e1ade150ccc63db1a4f6c1909d3d378f7d1235a44e90d75fb97"},
+]
+plac = [
+    {file = "plac-1.3.5-py2.py3-none-any.whl", hash = "sha256:a8933d21a40fe2cec177a2f96217425a4e889d275aa3e25ecf9a9640ab16d416"},
+    {file = "plac-1.3.5.tar.gz", hash = "sha256:38bdd864d0450fb748193aa817b9c458a8f5319fbf97b2261151cfc0a5812090"},
 ]
 platformdirs = [
     {file = "platformdirs-2.5.1-py3-none-any.whl", hash = "sha256:bcae7cab893c2d310a711b70b24efb93334febe65f8de776ee320b517471e227"},
@@ -2741,6 +2827,12 @@ typer = [
 typing-extensions = [
     {file = "typing_extensions-4.1.1-py3-none-any.whl", hash = "sha256:21c85e0fe4b9a155d0799430b0ad741cdce7e359660ccbd8b530613e8df88ce2"},
     {file = "typing_extensions-4.1.1.tar.gz", hash = "sha256:1a9462dcc3347a79b1f1c0271fbe79e844580bb598bafa1ed208b94da3cdcd42"},
+]
+unidic = [
+    {file = "unidic-1.1.0.tar.gz", hash = "sha256:0ab91c05de342c84d2a6314901fd3afb9061ecd7534dd4a0431dccbb87d921b7"},
+]
+unidic-lite = [
+    {file = "unidic-lite-1.0.8.tar.gz", hash = "sha256:db9d4572d9fdd4d00a97949d4b0741ec480ee05a7e7e2e32f547500dae27b245"},
 ]
 urllib3 = [
     {file = "urllib3-1.26.9-py2.py3-none-any.whl", hash = "sha256:44ece4d53fb1706f667c9bd1c648f5469a2ec925fcf3a776667042d645472c14"},
