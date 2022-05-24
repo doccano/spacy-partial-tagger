@@ -19,8 +19,12 @@ def tokenize(text: str) -> List[str]:
     global jumanpp
     if jumanpp is None:
         jumanpp = Juman("etc/bin/jumanpp")
-
-    return [mrph.midasi for mrph in jumanpp.analysis(text).mrph_list()]
+    tokens = []
+    for mrph in jumanpp.analysis(text).mrph_list():
+        if mrph.bunrui == "空白":
+            continue
+        tokens.append(mrph.midasi)
+    return tokens
 
 
 def load_from_conllu(
@@ -45,9 +49,9 @@ def load_from_conllu(
             x2y, _ = get_alignments(tokens, tokens_juman)
             annotations = []
             for label, start, end in tags_to_entities(tags):
-                # assert "".join(tokens[start : end + 1]) == "".join(
-                #     tokens_juman[x2y[start][0] : x2y[end][-1] + 1]
-                # )
+                assert "".join(tokens[start : end + 1]) in "".join(
+                    tokens_juman[x2y[start][0] : x2y[end][-1] + 1]
+                )
                 annotations.append(
                     {"start": x2y[start][0], "end": x2y[end][-1] + 1, "type": label}
                 )
