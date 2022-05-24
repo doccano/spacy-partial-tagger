@@ -12,10 +12,14 @@ from tokenizations import get_alignments
 
 from .convert import converter
 
-jumanpp = Juman("etc/bin/jumanpp")
+jumanpp = None
 
 
 def tokenize(text: str) -> List[str]:
+    global jumanpp
+    if jumanpp is None:
+        jumanpp = Juman("etc/bin/jumanpp")
+
     return [mrph.midasi for mrph in jumanpp.analysis(text).mrph_list()]
 
 
