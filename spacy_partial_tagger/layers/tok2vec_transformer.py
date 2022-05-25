@@ -6,11 +6,11 @@ from spacy.util import List, registry
 from thinc.api import ArgsKwargs, Model, torch2xp, xp2torch
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
 from thinc.types import Floats2d, Floats3d
-from tokenizations import get_alignments
 from torch.nn import Module
 from transformers import AutoModel, AutoTokenizer, BatchEncoding
 
 from ..aligners import TransformerAligner
+from ..util import get_alignments
 
 
 class TransformersWrapper(Module):
@@ -107,7 +107,7 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
             for ids in X.input_ids
         ]
         mappings = [
-            get_alignments(list(text), wordpiece)[1]
+            get_alignments(list(text), wordpiece)
             for text, wordpiece in zip(texts, wordpieces)
         ]
     aligners = [TransformerAligner(mapping) for mapping in mappings]
