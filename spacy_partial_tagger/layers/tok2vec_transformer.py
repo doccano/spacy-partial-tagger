@@ -6,11 +6,11 @@ from spacy.util import List, registry
 from thinc.api import ArgsKwargs, Model, torch2xp, xp2torch
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
 from thinc.types import Floats2d, Floats3d
-from tokenizations import get_alignments
 from torch.nn import Module
 from transformers import AutoModel, AutoTokenizer, BatchEncoding
 
 from ..aligners import TransformerAligner
+from ..util import get_alignments
 
 
 class TransformersWrapper(Module):
@@ -91,18 +91,26 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
         return_token_type_ids=True,
         return_attention_mask=True,
         return_tensors="pt",
+        return_offsets_mapping=tokenizer.is_fast,
         padding=padding,
         max_length=max_length,
         truncation=False,
     )
-    wordpieces = [
-        tokenizer.convert_ids_to_tokens(ids, skip_special_tokens=False)
-        for ids in X.input_ids
-    ]
-    aligners = [
-        TransformerAligner(get_alignments(list(text), wordpiece)[1])
-        for text, wordpiece in zip(texts, wordpieces)
-    ]
+    if tokenizer.is_fast:
+        mappings = [
+            [list(range(start, end)) for start, end in mapping]
+            for mapping in X.pop("offset_mapping")
+        ]
+    else:
+        wordpieces = [
+            tokenizer.convert_ids_to_tokens(ids, skip_special_tokens=False)
+            for ids in X.input_ids
+        ]
+        mappings = [
+            get_alignments(list(text), wordpiece)
+            for text, wordpiece in zip(texts, wordpieces)
+        ]
+    aligners = [TransformerAligner(mapping) for mapping in mappings]
     Y, backward = model.layers[0](X, is_train)
     return (Y, aligners), backward
 

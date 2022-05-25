@@ -6,13 +6,18 @@ authors = ["yasufumi <yasufumi.taniguchi@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-spacy = "^3.2.4"
+spacy = {version = "3.2.4", extras = ["ja", "transformers"]}
 thinc = "^8.0.15"
-transformers = "4.17"
+transformers = {version = "4.17", extras = ["ja"]}
 torch = "^1.11.0"
 partial-tagger = {path = "partial-tagger"}
 allennlp = "^2.9.2"
 pytokenizations = "^0.8.4"
+pyknp = "^0.6.1"
+conllu = "^4.4.2"
+mojimoji = "^0.0.12"
+fugashi = {extras = ["unidic-lite"], version = "^1.1.2"}
+unidic-lite = "^1.0.8"
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"
@@ -69,4 +74,8 @@ exclude = '''
 [tool.pytest.ini_options]
 testpaths = [
     "tests",
+]
+addopts = "--strict-markers -m 'not local'"
+markers = [
+    "local"
 ]

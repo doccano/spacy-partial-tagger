@@ -129,8 +129,11 @@ class PartialEntityRecognizer(TrainablePipe):
                 X_small.append(example.x)
             for tag in doc_to_biluo_tags(example.y):
                 if tag not in tag_to_id:
-                    id_to_tag.append(tag)
-                    tag_to_id[tag] = len(tag_to_id)
+                    _, label = tag.split("-")
+                    for prefix in ["B-", "I-", "L-", "U-"]:
+                        if prefix + label not in tag_to_id:
+                            id_to_tag.append(prefix + label)
+                            tag_to_id[prefix + label] = len(tag_to_id)
 
         for tag in tag_to_id:
             if tag == "O":
