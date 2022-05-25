@@ -16,7 +16,7 @@ pytokenizations = "^0.8.4"
 pyknp = "^0.6.1"
 conllu = "^4.4.2"
 mojimoji = "^0.0.12"
-fugashi = "^1.1.2"
+fugashi = {extras = ["unidic-lite"], version = "^1.1.2"}
 unidic-lite = "^1.0.8"
 
 [tool.poetry.dev-dependencies]
