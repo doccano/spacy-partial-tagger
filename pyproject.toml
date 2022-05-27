@@ -18,6 +18,7 @@ conllu = "^4.4.2"
 mojimoji = "^0.0.12"
 fugashi = {extras = ["unidic-lite"], version = "^1.1.2"}
 unidic-lite = "^1.0.8"
+colorlog = "^6.6.0"
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"
