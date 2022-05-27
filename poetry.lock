@@ -210,6 +210,20 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [[package]]
+name = "colorlog"
+version = "6.6.0"
+description = "Add colours to the output of Python's logging module."
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+colorama = {version = "*", markers = "sys_platform == \"win32\""}
+
+[package.extras]
+development = ["black", "flake8", "mypy", "pytest", "types-colorama"]
+
+[[package]]
 name = "conllu"
 version = "4.4.2"
 description = "CoNLL-U Parser parses a CoNLL-U formatted string into a nested python dictionary"
@@ -1594,7 +1608,7 @@ python-versions = "*"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "0a42c8f5f8b6e6097476a1aa5861264e98df7264449ded5d988531e4fa9a198e"
+content-hash = "b343edacb3eaadf47b56f410bf9fbe09145cafdf7ed5a2b79685af2bb0aebd85"
 
 [metadata.files]
 allennlp = [
@@ -1691,6 +1705,10 @@ click = [
 colorama = [
     {file = "colorama-0.4.4-py2.py3-none-any.whl", hash = "sha256:9f47eda37229f68eee03b24b9748937c7dc3868f906e8ba69fbcbdd3bc5dc3e2"},
     {file = "colorama-0.4.4.tar.gz", hash = "sha256:5941b2b48a20143d2267e95b1c2a7603ce057ee39fd88e7329b0c292aa16869b"},
+]
+colorlog = [
+    {file = "colorlog-6.6.0-py2.py3-none-any.whl", hash = "sha256:351c51e866c86c3217f08e4b067a7974a678be78f07f85fc2d55b8babde6d94e"},
+    {file = "colorlog-6.6.0.tar.gz", hash = "sha256:344f73204009e4c83c5b6beb00b3c45dc70fcdae3c80db919e0a4171d006fde8"},
 ]
 conllu = [
     {file = "conllu-4.4.2-py2.py3-none-any.whl", hash = "sha256:1cac11506d1797611fef319e536025b865699d3519e8766607c37e796b0f5b0e"},
