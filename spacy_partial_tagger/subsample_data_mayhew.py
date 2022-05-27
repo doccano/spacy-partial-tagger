@@ -17,8 +17,8 @@ import json
 import logging
 from argparse import ArgumentParser, Namespace
 from collections import defaultdict
-from typing import Sequence
 from copy import deepcopy
+from typing import Sequence
 
 import colorlog
 import numpy.random as npr
