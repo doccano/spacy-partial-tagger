@@ -13,6 +13,39 @@ from .layers.decoder import ConstrainedDecoder, get_constraints
 from .restructure import with_restructure
 
 
+@registry.architectures.register("spacy-partial-tagger.PartialTagger.v2")
+def build_partial_tagger_v2(
+    misaligned_tok2vec: Model[List[Doc], Tuple[List[Floats2d], List[Aligner]]],
+    crf: Model[Tuple[List[Floats2d], Ints1d], Floats4d],
+    decoder: Model[Tuple[Floats4d, Ints1d], Ints2d],
+) -> Model:
+    return Model(
+        name="partial_tagger",
+        forward=forward,
+        init=init,
+        layers=[misaligned_tok2vec, crf, decoder],
+    )
+
+
+def forward(model: Model, X: Any, is_train: bool) -> tuple:
+    (embeddings, aligners), backward1 = model.layers[0](X[0], is_train)
+    log_potentials, backward2 = model.layers[1]([embeddings, X[1]], is_train)
+    tag_indices, _ = model.layers[2]([log_potentials, X[1]], is_train)
+
+    def backward(dY: tuple) -> None:
+        d_embeddings, _ = backward2(dY)
+        backward1([d_embeddings, None])
+
+    return ((log_potentials, tag_indices), aligners), backward
+
+
+def init(model: Model, X: Any = None, Y: Any = None) -> None:
+    if Y is not None:
+        Y = Y[0]
+    for layer in model.layers:
+        layer.initialize(X, Y)
+
+
 @registry.architectures.register("spacy-partial-tagger.PartialTagger.v1")
 def build_partial_tagger(
     misaligned_tok2vec: Model[List[Doc], Tuple[List[Floats2d], List[Aligner]]],

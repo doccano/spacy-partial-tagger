@@ -1,7 +1,7 @@
 from typing import Tuple, cast
 
 import torch
-from partial_tagger.functional import crf
+from partial_tagger.crf import functional as F
 from thinc.loss import Loss
 from thinc.types import Floats1d, Floats4d, Ints2d
 from thinc.util import torch2xp, xp2torch
@@ -30,12 +30,12 @@ class ExpectedEntityRatioLoss(Loss):
     def __call__(self, guesses: Floats4d, truths: Ints2d) -> Tuple[Floats4d, Floats1d]:
         guesses_pt, truths_pt = xp2torch(guesses, requires_grad=True), xp2torch(truths)
         mask = truths_pt != self.padding_index
-        truths_pt = crf.to_tag_bitmap(
+        truths_pt = F.to_tag_bitmap(
             truths_pt, guesses_pt.size(-1), partial_index=self.unknown_index
         )
         with torch.enable_grad():
             # log partition
-            log_Z = crf.forward_algorithm(guesses_pt)
+            log_Z = F.forward_algorithm(guesses_pt)
 
             # marginal probabilities
             p = torch.autograd.grad(log_Z.sum(), guesses_pt, create_graph=True)[0].sum(
@@ -56,7 +56,7 @@ class ExpectedEntityRatioLoss(Loss):
         )
 
         # marginal likelihood
-        score = crf.multitag_sequence_score(guesses_pt, truths_pt, mask)
+        score = F.multitag_sequence_score(guesses_pt, truths_pt, mask)
 
         loss = (
             log_Z - score
