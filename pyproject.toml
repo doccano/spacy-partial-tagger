@@ -10,7 +10,6 @@ spacy = {version = "3.2.4", extras = ["ja", "transformers"]}
 thinc = "^8.0.15"
 transformers = {version = "4.17", extras = ["ja"]}
 torch = "^1.11.0"
-partial-tagger = {path = "partial-tagger"}
 allennlp = "^2.9.2"
 pytokenizations = "^0.8.4"
 pyknp = "^0.6.1"
@@ -19,6 +18,7 @@ mojimoji = "^0.0.12"
 fugashi = {extras = ["unidic-lite"], version = "^1.1.2"}
 unidic-lite = "^1.0.8"
 colorlog = "^6.6.0"
+partial-tagger = "^0.6.0"
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"
@@ -40,8 +40,11 @@ partial_ner = "spacy_partial_tagger.pipeline:make_partial_ner"
 
 [tool.poetry.plugins.spacy_architectures]
 "spacy-partial-tagger.PartialTagger.v1" = "spacy_partial_tagger.architecture:build_partial_tagger"
+"spacy-partial-tagger.PartialTagger.v2" = "spacy_partial_tagger.architecture:build_partial_tagger_v2"
 "spacy-partial-tagger.MisalignedTok2VecTransformer.v1" = "spacy_partial_tagger.layers.tok2vec_transformer:build_misaligned_tok2vec_transformer"
 "spacy-partial-tagger.Tok2VecWrapper.v1" = "spacy_partial_tagger.layers.tok2vec_wrapper:build_tok2vec_wrapper"
+"spacy-partial-tagger.CRF.v1" = "spacy_partial_tagger.layers.crf:build_crf_v1"
+"spacy-partial-tagger.ConstrainedViterbiDecoder.v1" = "spacy_partial_tagger.layers.decoder:build_constrained_viterbi_decoder_v1"
 
 [tool.poetry.plugins.spacy_label_indexers]
 "spacy-partial-tagger.TransformerLabelIndexer.v1" = "spacy_partial_tagger.label_indexers:configure_transformer_label_indexer"
