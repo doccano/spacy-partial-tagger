@@ -25,6 +25,7 @@ def get_mask(
 def build_crf_v1(
     nI: int,
     nO: Optional[int] = None,
+    dropout: float = 0.0,
     mixed_precision: bool = False,
     grad_scaler: Optional[PyTorchGradScaler] = None,
 ) -> Model[Tuple[List[Floats2d], Ints1d], Floats4d]:
@@ -33,7 +34,11 @@ def build_crf_v1(
         forward=forward,
         init=init,
         dims={"nI": nI, "nO": nO},
-        attrs={"mixed_precision": mixed_precision, "grad_scaler": grad_scaler},
+        attrs={
+            "dropout": dropout,
+            "mixed_precision": mixed_precision,
+            "grad_scaler": grad_scaler,
+        },
     )
 
 
@@ -42,7 +47,14 @@ def forward(
     X: Tuple[List[Floats2d], Ints1d],
     is_train: bool,
 ) -> Tuple[Floats4d, Callable]:
-    return model.layers[0](X, is_train)
+
+    dropouted, backward1 = model.layers[0](X, is_train)
+    log_potentials, backward2 = model.layers[1](X, is_train)
+
+    def backward(dY: Floats4d) -> List[Floats2d]:
+        return backward1(backward2(dY))
+
+    return log_potentials, backward
 
 
 def init(model: Model, X: Any = None, Y: Any = None) -> None:
@@ -55,7 +67,9 @@ def init(model: Model, X: Any = None, Y: Any = None) -> None:
         model.set_dim("nO", len(Y))
 
     PyTorchWrapper = registry.get("layers", "PyTorchWrapper.v2")
+    Dropout = registry.get("layers", "Dropout.v1")
 
+    dropout = model.attrs["dropout"]
     mixed_precision = model.attrs["mixed_precision"]
     grad_scaler = model.attrs["grad_scaler"]
 
@@ -66,7 +80,7 @@ def init(model: Model, X: Any = None, Y: Any = None) -> None:
         grad_scaler=grad_scaler,
     )
 
-    model._layers = [crf]
+    model._layers = [Dropout(dropout), crf]
 
 
 def convert_inputs(
