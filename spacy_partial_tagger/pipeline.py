@@ -73,7 +73,7 @@ class PartialEntityRecognizer(TrainablePipe):
 
     def predict(self, docs: List[Doc]) -> Tuple[Floats2d, List[Aligner]]:
         lengths = self._get_lengths_from_docs(docs)
-        (_, guesses), aligners = self.model.predict((docs, lengths))
+        _, guesses, aligners = self.model.predict((docs, lengths))
         return (guesses, aligners)
 
     def set_annotations(
@@ -107,12 +107,12 @@ class PartialEntityRecognizer(TrainablePipe):
         losses.setdefault(self.name, 0.0)
         docs = [example.x for example in examples]
         lengths = self._get_lengths_from_docs(docs)
-        ((log_potentials, _), aligners), backward = self.model.begin_update(
+        (log_potentials, _, aligners), backward = self.model.begin_update(
             (docs, lengths)
         )
         loss, grad = self.get_loss(examples, (log_potentials, aligners))
-        # None is dummy gradients for aligners
-        backward((grad, None))
+        # None is dummy gradients for tag indices and aligners
+        backward((grad, None, None))
         if sgd is not None:
             self.finish_update(sgd)
         losses[self.name] += loss
@@ -143,7 +143,7 @@ class PartialEntityRecognizer(TrainablePipe):
 
         self.model.initialize(
             X=(X_small, self._get_lengths_from_docs(X_small)),
-            Y=({i: tag for i, tag in enumerate(id_to_tag)}, None),
+            Y={i: tag for i, tag in enumerate(id_to_tag)},
         )
 
         self.cfg["tag_to_id"] = tag_to_id
@@ -240,14 +240,19 @@ class PartialEntityRecognizer(TrainablePipe):
 default_model_config = """
 [model]
 @architectures = "spacy-partial-tagger.PartialTagger.v1"
-nI = 768
-nO = null
-dropout = 0.2
-padding_index = -1
 
 [model.misaligned_tok2vec]
 @architectures = "spacy-partial-tagger.MisalignedTok2VecTransformer.v1"
 model_name = "roberta-base"
+
+[model.encoder]
+@architectures = "spacy-partial-tagger.LinearCRFEncoder.v1"
+nI = 768
+nO = null
+
+[model.decoder]
+@architectures = "spacy-partial-tagger.ConstrainedViterbiDecoder.v1"
+padding_index = -1
 """
 DEFAULT_NER_MODEL = Config().from_str(default_model_config)["model"]
 

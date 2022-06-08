@@ -1,16 +1,14 @@
-from typing import Any, Callable, Dict, List, Optional, Tuple, cast
+from typing import Any, Callable, Dict, Optional, Tuple, cast
 
 import torch
 from allennlp.modules.conditional_random_field import is_transition_allowed
-from partial_tagger.crf.functional import amax, constrain_log_potentials
 from partial_tagger.decoders.viterbi import ConstrainedViterbiDecoder
 from spacy.util import registry
 from thinc.api import ArgsKwargs, Model, torch2xp, xp2torch
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
 from thinc.types import Floats4d, Ints1d, Ints2d
-from torch import nn
 
-from .crf import get_mask
+from .encoder import get_mask
 
 
 @registry.architectures.register("spacy-partial-tagger.ConstrainedViterbiDecoder.v1")
@@ -87,69 +85,6 @@ def convert_outputs(
     _, Y_t = inputs_outputs
     Y = cast(Ints2d, torch2xp(Y_t))
     return Y, lambda dY: []
-
-
-class ConstrainedDecoder(nn.Module):
-    def __init__(
-        self,
-        start_constraints: List[bool],
-        end_constraints: List[bool],
-        transition_constraints: List[List[bool]],
-        padding_index: Optional[int] = -1,
-    ) -> None:
-        super(ConstrainedDecoder, self).__init__()
-
-        self.start_constraints = nn.Parameter(
-            torch.tensor(start_constraints), requires_grad=False
-        )
-        self.end_constraints = nn.Parameter(
-            torch.tensor(end_constraints), requires_grad=False
-        )
-        self.transition_constraints = nn.Parameter(
-            torch.tensor(transition_constraints), requires_grad=False
-        )
-        self.padding_index = padding_index
-
-    def forward(
-        self,
-        log_potentials: torch.Tensor,
-        lengths: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-        if lengths is None:
-            mask = log_potentials.new_ones(log_potentials.shape[:-2], dtype=torch.bool)
-        else:
-            mask = (
-                torch.arange(
-                    log_potentials.size(1),
-                    device=log_potentials.device,
-                )[None, :]
-                < lengths[:, None]
-            )
-
-        log_potentials.requires_grad_()
-
-        with torch.enable_grad():
-            constrained_log_potentials = constrain_log_potentials(
-                log_potentials,
-                mask,
-                self.start_constraints,
-                self.end_constraints,
-                self.transition_constraints,
-            )
-
-            max_score = amax(constrained_log_potentials)
-
-            (tag_matrix,) = torch.autograd.grad(
-                max_score.sum(), constrained_log_potentials
-            )
-            tag_matrix = tag_matrix.long()
-
-            tag_bitmap = tag_matrix.sum(dim=-2)
-
-            tag_indices = tag_bitmap.argmax(dim=-1)
-
-        tag_indices = tag_indices * mask + self.padding_index * (~mask)
-        return tag_indices
 
 
 def get_constraints(tag_dict: Dict[int, str]) -> Tuple[list, list, list]:

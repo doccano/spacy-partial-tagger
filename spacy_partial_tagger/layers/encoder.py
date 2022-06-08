@@ -6,7 +6,6 @@ from spacy.util import registry
 from thinc.api import ArgsKwargs, Model, torch2xp, xp2torch
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
 from thinc.types import Floats2d, Floats3d, Floats4d, Ints1d
-from torch import nn
 
 
 def get_mask(
@@ -21,8 +20,8 @@ def get_mask(
     )
 
 
-@registry.architectures.register("spacy-partial-tagger.CRF.v1")
-def build_crf_v1(
+@registry.architectures.register("spacy-partial-tagger.LinearCRFEncoder.v1")
+def build_linear_crf_encoder_v1(
     nI: int,
     nO: Optional[int] = None,
     dropout: float = 0.0,
@@ -30,7 +29,7 @@ def build_crf_v1(
     grad_scaler: Optional[PyTorchGradScaler] = None,
 ) -> Model[Tuple[List[Floats2d], Ints1d], Floats4d]:
     return Model(
-        name="crf",
+        name="linear_crf_encoder",
         forward=forward,
         init=init,
         dims={"nI": nI, "nO": nO},
@@ -104,28 +103,3 @@ def convert_inputs(
     output = ArgsKwargs(args=(Xt, mask), kwargs={})
 
     return output, convert_from_torch_backward
-
-
-class CRF(nn.Module):
-    def __init__(
-        self, embedding_size: int, num_tags: int, dropout: float = 0.2
-    ) -> None:
-        super(CRF, self).__init__()
-
-        self.crf = LinearCRFEncoder(embedding_size, num_tags)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(
-        self, embeddings: torch.Tensor, lengths: Optional[torch.Tensor] = None
-    ) -> torch.Tensor:
-        if lengths is None:
-            mask = embeddings.new_ones(embeddings.shape[:-1], dtype=torch.bool)
-        else:
-            mask = (
-                torch.arange(
-                    embeddings.size(1),
-                    device=embeddings.device,
-                )[None, :]
-                < lengths[:, None]
-            )
-        return self.crf(self.dropout(embeddings), mask)
