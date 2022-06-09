@@ -1,12 +1,26 @@
 from typing import Any, Callable, List, Optional, Tuple, cast
 
-from partial_tagger.encoders.linear import LinearCRFEncoder
+import torch
+from partial_tagger.encoders.linear import LinearCRFEncoder as OriginalLinearCRFEncoder
 from spacy.util import registry
 from thinc.api import ArgsKwargs, Model, torch2xp, xp2torch
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
 from thinc.types import Floats2d, Floats3d, Floats4d, Ints1d
+from torch.nn import Dropout
 
 from .util import get_mask
+
+
+class LinearCRFEncoder(OriginalLinearCRFEncoder):
+    def __init__(self, embedding_size: int, num_tags: int, dropout: float) -> None:
+        super(LinearCRFEncoder, self).__init__(embedding_size, num_tags)
+
+        self.dropout = Dropout(dropout)
+
+    def forward(
+        self, embeddings: torch.Tensor, mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        return super(LinearCRFEncoder, self).forward(self.dropout(embeddings), mask)
 
 
 @registry.architectures.register("spacy-partial-tagger.LinearCRFEncoder.v1")
@@ -36,13 +50,7 @@ def forward(
     is_train: bool,
 ) -> Tuple[Floats4d, Callable]:
 
-    dropouted, backward1 = model.layers[0](X, is_train)
-    log_potentials, backward2 = model.layers[1](X, is_train)
-
-    def backward(dY: Floats4d) -> List[Floats2d]:
-        return backward1(backward2(dY))
-
-    return log_potentials, backward
+    return model.layers[0](X, is_train)
 
 
 def init(model: Model, X: Any = None, Y: Any = None) -> None:
@@ -55,20 +63,19 @@ def init(model: Model, X: Any = None, Y: Any = None) -> None:
         model.set_dim("nO", len(Y))
 
     PyTorchWrapper = registry.get("layers", "PyTorchWrapper.v2")
-    Dropout = registry.get("layers", "Dropout.v1")
 
     dropout = model.attrs["dropout"]
     mixed_precision = model.attrs["mixed_precision"]
     grad_scaler = model.attrs["grad_scaler"]
 
-    crf = PyTorchWrapper(
-        LinearCRFEncoder(model.get_dim("nI"), model.get_dim("nO")),
+    encoder = PyTorchWrapper(
+        LinearCRFEncoder(model.get_dim("nI"), model.get_dim("nO"), dropout),
         convert_inputs=convert_inputs,
         mixed_precision=mixed_precision,
         grad_scaler=grad_scaler,
     )
 
-    model._layers = [Dropout(dropout), crf]
+    model._layers = [encoder]
 
 
 def convert_inputs(
