@@ -13,7 +13,7 @@ from .util import get_mask
 
 @registry.architectures.register("spacy-partial-tagger.ConstrainedViterbiDecoder.v1")
 def build_constrained_viterbi_decoder_v1(
-    padding_index: int,
+    padding_index: int = -1,
     mixed_precision: bool = False,
     grad_scaler: Optional[PyTorchGradScaler] = None,
 ) -> Model[Tuple[Floats4d, Ints1d], Ints2d]:
