@@ -8,7 +8,7 @@ from thinc.api import ArgsKwargs, Model, torch2xp, xp2torch
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
 from thinc.types import Floats4d, Ints1d, Ints2d
 
-from .encoder import get_mask
+from .util import get_mask
 
 
 @registry.architectures.register("spacy-partial-tagger.ConstrainedViterbiDecoder.v1")

@@ -1,23 +1,12 @@
 from typing import Any, Callable, List, Optional, Tuple, cast
 
-import torch
 from partial_tagger.encoders.linear import LinearCRFEncoder
 from spacy.util import registry
 from thinc.api import ArgsKwargs, Model, torch2xp, xp2torch
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
 from thinc.types import Floats2d, Floats3d, Floats4d, Ints1d
 
-
-def get_mask(
-    lengths: torch.Tensor, max_length: int, device: torch.device
-) -> torch.Tensor:
-    return (
-        torch.arange(
-            max_length,
-            device=device,
-        )[None, :]
-        < lengths[:, None]
-    )
+from .util import get_mask
 
 
 @registry.architectures.register("spacy-partial-tagger.LinearCRFEncoder.v1")
