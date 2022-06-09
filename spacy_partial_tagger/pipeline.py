@@ -235,7 +235,7 @@ class PartialEntityRecognizer(TrainablePipe):
 
 default_model_config = """
 [model]
-@architectures = "spacy-partial-tagger.PartialTagger.v2"
+@architectures = "spacy-partial-tagger.PartialTagger.v1"
 
 [model.misaligned_tok2vec]
 @architectures = "spacy-partial-tagger.MisalignedTok2VecTransformer.v1"

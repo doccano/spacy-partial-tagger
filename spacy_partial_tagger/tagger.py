@@ -8,8 +8,8 @@ from thinc.types import Floats2d, Floats4d, Ints1d, Ints2d
 from .aligners import Aligner
 
 
-@registry.architectures.register("spacy-partial-tagger.PartialTagger.v2")
-def build_partial_tagger_v2(
+@registry.architectures.register("spacy-partial-tagger.PartialTagger.v1")
+def build_partial_tagger_v1(
     misaligned_tok2vec: Model[List[Doc], Tuple[List[Floats2d], List[Aligner]]],
     encoder: Model[Tuple[List[Floats2d], Ints1d], Floats4d],
     decoder: Model[Tuple[Floats4d, Ints1d], Ints2d],
