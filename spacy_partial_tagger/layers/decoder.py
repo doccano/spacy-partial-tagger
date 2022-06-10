@@ -1,72 +1,90 @@
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, cast
 
 import torch
 from allennlp.modules.conditional_random_field import is_transition_allowed
-from partial_tagger.functional.crf import amax, constrain_log_potentials
-from torch import nn
+from partial_tagger.decoders.viterbi import ConstrainedViterbiDecoder
+from spacy.util import registry
+from thinc.api import ArgsKwargs, Model, torch2xp, xp2torch
+from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
+from thinc.types import Floats4d, Ints1d, Ints2d
+
+from .util import get_mask
 
 
-class ConstrainedDecoder(nn.Module):
-    def __init__(
-        self,
-        start_constraints: List[bool],
-        end_constraints: List[bool],
-        transition_constraints: List[List[bool]],
-        padding_index: Optional[int] = -1,
-    ) -> None:
-        super(ConstrainedDecoder, self).__init__()
+@registry.architectures.register("spacy-partial-tagger.ConstrainedViterbiDecoder.v1")
+def build_constrained_viterbi_decoder_v1(
+    padding_index: int = -1,
+    mixed_precision: bool = False,
+    grad_scaler: Optional[PyTorchGradScaler] = None,
+) -> Model[Tuple[Floats4d, Ints1d], Ints2d]:
+    return Model(
+        name="constrained_viterbi_decoder",
+        forward=forward,
+        init=init,
+        attrs={
+            "padding_index": padding_index,
+            "mixed_precision": mixed_precision,
+            "grad_scaler": grad_scaler,
+        },
+    )
 
-        self.start_constraints = nn.Parameter(
-            torch.tensor(start_constraints), requires_grad=False
-        )
-        self.end_constraints = nn.Parameter(
-            torch.tensor(end_constraints), requires_grad=False
-        )
-        self.transition_constraints = nn.Parameter(
-            torch.tensor(transition_constraints), requires_grad=False
-        )
-        self.padding_index = padding_index
 
-    def forward(
-        self,
-        log_potentials: torch.Tensor,
-        lengths: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-        if lengths is None:
-            mask = log_potentials.new_ones(log_potentials.shape[:-2], dtype=torch.bool)
-        else:
-            mask = (
-                torch.arange(
-                    log_potentials.size(1),
-                    device=log_potentials.device,
-                )[None, :]
-                < lengths[:, None]
-            )
+def forward(
+    model: Model[Tuple[Floats4d, Ints1d], Ints2d],
+    X: Tuple[Floats4d, Ints1d],
+    is_train: bool,
+) -> Tuple[Ints2d, Callable]:
+    return model.layers[0](X, is_train)
 
-        log_potentials.requires_grad_()
 
-        with torch.enable_grad():
-            constrained_log_potentials = constrain_log_potentials(
-                log_potentials,
-                mask,
-                self.start_constraints,
-                self.end_constraints,
-                self.transition_constraints,
-            )
+def init(
+    model: Model[Tuple[Floats4d, Ints1d], Ints2d], X: Any = None, Y: Any = None
+) -> None:
+    if model.layers:
+        return
 
-            max_score = amax(constrained_log_potentials)
+    if Y is None:
+        Y = {0: "O"}
 
-            (tag_matrix,) = torch.autograd.grad(
-                max_score.sum(), constrained_log_potentials
-            )
-            tag_matrix = tag_matrix.long()
+    PyTorchWrapper = registry.get("layers", "PyTorchWrapper.v2")
 
-            tag_bitmap = tag_matrix.sum(dim=-2)
+    padding_index = model.attrs["padding_index"]
+    mixed_precision = model.attrs["mixed_precision"]
+    grad_scaler = model.attrs["grad_scaler"]
 
-            tag_indices = tag_bitmap.argmax(dim=-1)
+    decoder = PyTorchWrapper(
+        ConstrainedViterbiDecoder(*get_constraints(Y), padding_index=padding_index),
+        mixed_precision=mixed_precision,
+        convert_inputs=convert_inputs,
+        convert_outputs=convert_outputs,
+        grad_scaler=grad_scaler,
+    )
 
-        tag_indices = tag_indices * mask + self.padding_index * (~mask)
-        return tag_indices
+    model._layers = [decoder]
+
+
+def convert_inputs(
+    model: Model[Tuple[Floats4d, Ints1d], Ints2d],
+    X_lengths: Tuple[Floats4d, Ints1d],
+    is_train: bool,
+) -> Tuple[ArgsKwargs, Callable]:
+    X, L = X_lengths
+
+    Xt = xp2torch(X, requires_grad=True)
+    Lt = xp2torch(L, requires_grad=False)
+    mask = get_mask(Lt, Xt.size(1), Xt.device)
+    output = ArgsKwargs(args=(Xt, mask), kwargs={})
+    return output, lambda d_inputs: []
+
+
+def convert_outputs(
+    model: Model[Tuple[Floats4d, Ints1d], Ints2d],
+    inputs_outputs: Tuple[Tuple[Floats4d, Ints1d], torch.Tensor],
+    is_train: bool,
+) -> Tuple[Ints2d, Callable]:
+    _, Y_t = inputs_outputs
+    Y = cast(Ints2d, torch2xp(Y_t))
+    return Y, lambda dY: []
 
 
 def get_constraints(tag_dict: Dict[int, str]) -> Tuple[list, list, list]:
