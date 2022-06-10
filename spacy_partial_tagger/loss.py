@@ -2,6 +2,7 @@ from typing import Tuple, cast
 
 import torch
 from partial_tagger.crf import functional as F
+from thinc.config import registry
 from thinc.loss import Loss
 from thinc.types import Floats1d, Floats4d, Ints2d
 from thinc.util import torch2xp, xp2torch
@@ -69,3 +70,22 @@ class ExpectedEntityRatioLoss(Loss):
 
     def get_loss(self, guesses: Floats4d, truths: Ints2d) -> Floats1d:
         return self(guesses, truths)[1]
+
+
+@registry.losses("spacy-partial-tagger.ExpectedEntityRatioLoss.v1")
+def configure_ExpectedEntityRatioLoss(
+    padding_index: int,
+    unknown_index: int,
+    outside_index: int,
+    expected_entity_ratio_loss_weight: float = 10.0,
+    entity_ratio: float = 0.15,
+    entity_ratio_margin: float = 0.05,
+) -> ExpectedEntityRatioLoss:
+    return ExpectedEntityRatioLoss(
+        padding_index,
+        unknown_index,
+        outside_index,
+        expected_entity_ratio_loss_weight,
+        entity_ratio,
+        entity_ratio_margin,
+    )
