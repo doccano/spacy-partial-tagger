@@ -10,13 +10,13 @@ from spacy.training import Example
 from spacy.training.iob_utils import biluo_tags_to_spans, doc_to_biluo_tags
 from spacy.vocab import Vocab
 from thinc.config import Config
+from thinc.loss import Loss
 from thinc.model import Model
 from thinc.optimizers import Optimizer
 from thinc.types import Floats2d, Floats4d, Ints1d
 
 from .aligners import Aligner
 from .label_indexers import LabelIndexer
-from .loss import ExpectedEntityRatioLoss
 
 
 class PartialEntityRecognizer(TrainablePipe):
@@ -25,23 +25,21 @@ class PartialEntityRecognizer(TrainablePipe):
         vocab: Vocab,
         model: Model,
         name: str,
+        loss: Loss,
         scorer: Callable,
         label_indexer: LabelIndexer,
-        padding_index: int = -1,
-        unknown_index: int = -100,
     ) -> None:
         self.vocab = vocab
         self.model = model
         self.name = name
+        self.loss_func = loss
         self.scorer = scorer
         self.label_indexer = label_indexer
+
         self.cfg: dict = {
             "labels": [],
             "tag_to_id": {},
             "id_to_tag": [],
-            "outside_index": 0,
-            "padding_index": padding_index,
-            "unknown_index": unknown_index,
         }
 
     @property
@@ -55,18 +53,6 @@ class PartialEntityRecognizer(TrainablePipe):
     @property
     def id_to_tag(self) -> list:
         return self.cfg["id_to_tag"]
-
-    @property
-    def outside_index(self) -> int:
-        return self.cfg["outside_index"]
-
-    @property
-    def padding_index(self) -> int:
-        return self.cfg["padding_index"]
-
-    @property
-    def unknown_index(self) -> int:
-        return self.cfg["unknown_index"]
 
     def _get_lengths_from_docs(self, docs: List[Doc]) -> Ints1d:
         return self.model.ops.asarray1i([len(doc) for doc in docs])
@@ -87,7 +73,7 @@ class PartialEntityRecognizer(TrainablePipe):
         ):
             tags = []
             for index in tag_indices:
-                if index == self.padding_index:
+                if index < 0 or len(self.tag_to_id) <= index:
                     break
                 tags.append(self.id_to_tag[index])
             doc.ents = biluo_tags_to_spans(
@@ -121,7 +107,7 @@ class PartialEntityRecognizer(TrainablePipe):
     def initialize(
         self, get_examples: Callable, *, nlp: Language, labels: dict = None
     ) -> None:
-        tag_to_id: dict = {"O": 0}
+        tag_to_id: dict = {"O": getattr(self.loss_func, "outside_index", 0)}
         id_to_tag: list = ["O"]
         X_small: List[Doc] = []
         for example in get_examples():
@@ -148,7 +134,6 @@ class PartialEntityRecognizer(TrainablePipe):
 
         self.cfg["tag_to_id"] = tag_to_id
         self.cfg["id_to_tag"] = id_to_tag
-        self.cfg["outside_index"] = tag_to_id["O"]
 
     def get_loss(
         self,
@@ -156,10 +141,7 @@ class PartialEntityRecognizer(TrainablePipe):
         scores_aligners: Tuple[Floats4d, List[Aligner]],
     ) -> Tuple[float, Floats4d]:
         scores, aligners = scores_aligners
-        padding_index = self.padding_index
-        unknown_index = self.unknown_index
-        outside_index = self.outside_index
-        loss_func = ExpectedEntityRatioLoss(padding_index, unknown_index, outside_index)
+        loss_func = self.loss_func
         batch_tags = []
         for example, aligner in zip(examples, aligners):
             tags = doc_to_biluo_tags(example.y)
@@ -258,14 +240,18 @@ DEFAULT_NER_MODEL = Config().from_str(default_model_config)["model"]
     assigns=["doc.ents", "token.ent_iob", "token.ent_type"],
     default_config={
         "model": DEFAULT_NER_MODEL,
+        "loss": {
+            "@losses": "spacy-partial-tagger.ExpectedEntityRatioLoss.v1",
+            "padding_index": -1,
+            "unknown_index": -100,
+            "outside_index": 0,
+        },
         "scorer": {"@scorers": "spacy.ner_scorer.v1"},
         "label_indexer": {
             "@label_indexers": "spacy-partial-tagger.TransformerLabelIndexer.v1",
             "padding_index": -1,
             "unknown_index": -100,
         },
-        "padding_index": -1,
-        "unknown_index": -100,
     },
     default_score_weights={
         "ents_f": 1.0,
@@ -278,11 +264,15 @@ def make_partial_ner(
     nlp: Language,
     name: str,
     model: Model,
+    loss: Loss,
     scorer: Callable,
     label_indexer: LabelIndexer,
-    padding_index: int,
-    unknown_index: int,
 ) -> PartialEntityRecognizer:
     return PartialEntityRecognizer(
-        nlp.vocab, model, name, scorer, label_indexer, padding_index, unknown_index
+        nlp.vocab,
+        model,
+        name,
+        loss,
+        scorer,
+        label_indexer,
     )

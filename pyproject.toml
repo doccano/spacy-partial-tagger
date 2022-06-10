@@ -48,6 +48,9 @@ partial_ner = "spacy_partial_tagger.pipeline:make_partial_ner"
 [tool.poetry.plugins.spacy_label_indexers]
 "spacy-partial-tagger.TransformerLabelIndexer.v1" = "spacy_partial_tagger.label_indexers:configure_transformer_label_indexer"
 
+[tool.poetry.plugins.thinc_losses]
+"spacy-partial-tagger.ExpectedEntityRatioLoss.v1" = "spacy_partial_tagger.loss:configure_ExpectedEntityRatioLoss"
+
 [tool.mypy]
 ignore_missing_imports = true
 disallow_untyped_defs = true
@@ -57,7 +60,6 @@ show_error_codes = true
 profile = "black"
 include_trailing_comma = true
 multi_line_output = 3
-skip = "partial-tagger"
 
 [tool.black]
 exclude = '''
