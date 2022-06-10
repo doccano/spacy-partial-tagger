@@ -1,8 +1,16 @@
 [tool.poetry]
 name = "spacy-partial-tagger"
 version = "0.8.0"
-description = ""
+description = "Sequence Tagger for Partially Annotated Dataset in spaCy"
 authors = ["yasufumi <yasufumi.taniguchi@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/tech-sketch/spacy-partial-tagger"
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9"
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
