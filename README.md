@@ -1,13 +1,34 @@
 # spacy-partial-tagger
 
-This is a CRF tagger for partially annotated dataset in spaCy. The implementation of 
-this tagger is based on Effland and Collins. (2021).
+This is a CRF tagger for partially annotated dataset in spaCy. You can build your 
+own NER tagger only from dictionary. The implementation of this tagger is based on Effland and Collins. (2021).
 
 ## Dataset
 
 Prepare spaCy binary format file. This library expects tokenization is character-based.
 For more detail about spaCy binary format, see [this page](https://spacy.io/api/data-formats#training).
 
+```py
+import spacy
+from spacy.tokens import DocBin
+from spacy_partial_tagger.tokenizer import CharacterTokenizer
+
+
+nlp = spacy.blank("en")
+nlp.tokenizer = CharacterTokenizer(nlp.vocab)
+
+patterns = [{"label": "LOC", "pattern": "Tokyo"}, {"label": "LOC", "pattern": "Japan"}]
+ruler = nlp.add_pipe("entity_ruler")
+ruler.add_patterns(patterns)
+
+doc = nlp("Tokyo is the capital of Japan.")
+
+
+doc_bin = DocBin()
+doc_bin.add(doc)
+
+doc_bin.to_disk("/path/to/dataset")
+```
 
 ## Training
 
