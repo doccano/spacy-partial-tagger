@@ -14,19 +14,12 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-spacy = {version = "3.2.4", extras = ["ja", "transformers"]}
 thinc = "^8.0.15"
-transformers = {version = "4.17", extras = ["ja"]}
+transformers = "^4.19.4"
 torch = "^1.11.0"
-allennlp = "^2.9.2"
 pytokenizations = "^0.8.4"
-pyknp = "^0.6.1"
-conllu = "^4.4.2"
-mojimoji = "^0.0.12"
-fugashi = {extras = ["unidic-lite"], version = "^1.1.2"}
-unidic-lite = "^1.0.8"
-colorlog = "^6.6.0"
 partial-tagger = "^0.6.0"
+spacy = {extras = ["transformers"], version = "^3.3.1"}
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"
