@@ -1,8 +1,6 @@
-import json
 from typing import List
 
 import catalogue
-from spacy.training.iob_utils import tags_to_entities
 from spacy.util import registry
 from tokenizations import get_alignments as get_alignments_original
 
