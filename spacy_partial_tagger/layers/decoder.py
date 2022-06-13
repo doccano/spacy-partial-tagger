@@ -1,7 +1,6 @@
 from typing import Any, Callable, Dict, Optional, Tuple, cast
 
 import torch
-from allennlp.modules.conditional_random_field import is_transition_allowed
 from partial_tagger.decoders.viterbi import ConstrainedViterbiDecoder
 from spacy.util import registry
 from thinc.api import ArgsKwargs, Model, torch2xp, xp2torch
@@ -87,6 +86,25 @@ def convert_outputs(
     return Y, lambda dY: []
 
 
+# Copied from AllenNLP
+def is_transition_allowed(
+    from_tag: str, from_entity: str, to_tag: str, to_entity: str
+) -> bool:
+    return any(
+        [
+            # O can transition to O, B-* or U-*
+            # L-x can transition to O, B-*, or U-*
+            # U-x can transition to O, B-*, or U-*
+            from_tag in ("O", "L", "U") and to_tag in ("O", "B", "U"),
+            # B-x can only transition to I-x or L-x
+            # I-x can only transition to I-x or L-x
+            from_tag in ("B", "I")
+            and to_tag in ("I", "L")
+            and from_entity == to_entity,
+        ]
+    )
+
+
 def get_constraints(tag_dict: Dict[int, str]) -> Tuple[list, list, list]:
     """Computes start/end/transition constraints for a CRF.
     Args:
@@ -108,7 +126,6 @@ def get_constraints(tag_dict: Dict[int, str]) -> Tuple[list, list, list]:
         for j, tag_to in tag_dict.items():
             prefix_to, entity_to = tag_to[0], tag_to[1:]
             if is_transition_allowed(
-                "BIOUL",
                 from_tag=prefix_from,
                 from_entity=entity_from,
                 to_tag=prefix_to,
