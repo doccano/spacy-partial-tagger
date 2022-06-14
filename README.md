@@ -33,11 +33,15 @@ doc_bin.to_disk("/path/to/data.spacy")
 
 ## Training
 
+Train your model as follows:
+
 ```sh
 python -m spacy train config.cfg --output outputs --paths.train /path/to/train.spacy --paths.dev /path/to/dev.spacy --gpu-id 0
 ```
 
 ## Evaluation
+
+Evaluate your model as follows:
 
 ```sh
 python -m spacy evaluate outputs/model-best /path/to/test.spacy --gpu-id 0
