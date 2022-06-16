@@ -3,6 +3,13 @@
 This is a CRF tagger for partially annotated dataset in spaCy. You can build your 
 own NER tagger only from dictionary. The algorithm of this tagger is based on Effland and Collins. (2021).
 
+
+## Overview
+
+
+
+![](images/overview.png)
+
 ## Dataset Preparation
 
 Prepare spaCy binary format file. This library expects tokenization is character-based.
