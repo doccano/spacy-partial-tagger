@@ -71,6 +71,8 @@ pip install spacy-partial-tagger
 
 If you have problems installing `pytokenizations`, please check [this website](https://rustup.rs/) and install Rust.
 
+If you use M1 Mac, you might have problems installing `fugashi`. In that case, please try `brew install mecab` before the installation.
+
 ## References
 
 - Thomas Effland and Michael Collins. 2021. [Partially Supervised Named Entity Recognition via the Expected Entity Ratio Loss](https://aclanthology.org/2021.tacl-1.78/). _Transactions of the Association for Computational Linguistics_, 9:1320–1335.
