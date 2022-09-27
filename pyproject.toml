@@ -17,9 +17,9 @@ python = "^3.8"
 thinc = "^8.0.15"
 transformers = "^4.19.4"
 torch = "^1.11.0"
-pytokenizations = "^0.8.4"
 partial-tagger = "^0.6.0"
 spacy = {extras = ["transformers"], version = "^3.3.1"}
+spacy-alignments = "^0.8.5"
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"
