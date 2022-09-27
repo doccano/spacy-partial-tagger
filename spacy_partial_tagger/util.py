@@ -1,8 +1,8 @@
 from typing import List
 
 import catalogue
+import spacy_alignments as tokenizations
 from spacy.util import registry
-from tokenizations import get_alignments as get_alignments_original
 
 registry.label_indexers = catalogue.create(  # type:ignore
     "spacy", "label_indexers", entry_points=True
@@ -10,7 +10,7 @@ registry.label_indexers = catalogue.create(  # type:ignore
 
 
 def get_alignments(source: List[str], target: List[str]) -> List[List[int]]:
-    _, y2x = get_alignments_original(source, target)
+    _, y2x = tokenizations.get_alignments(source, target)
     indices = iter(range(len(source)))
     for y in y2x:
         if not y:

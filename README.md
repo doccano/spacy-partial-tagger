@@ -1,6 +1,6 @@
 # spacy-partial-tagger
 
-This is a CRF tagger for partially annotated dataset in spaCy. You can build your 
+This is a library to build a CRF tagger for a partially annotated dataset in spaCy. You can build your 
 own NER tagger only from dictionary. The algorithm of this tagger is based on Effland and Collins. (2021).
 
 
@@ -68,8 +68,6 @@ Don't forget to replace `/path/to/test.spacy` with your own.
 ```sh
 pip install spacy-partial-tagger
 ```
-
-If you have problems installing `pytokenizations`, please check [this website](https://rustup.rs/) and install Rust.
 
 If you use M1 Mac, you might have problems installing `fugashi`. In that case, please try `brew install mecab` before the installation.
 
