@@ -3,7 +3,7 @@ from typing import Any, Optional, Tuple, cast
 import torch
 from spacy.tokens import Doc
 from spacy.util import List, registry
-from thinc.api import ArgsKwargs, Model, torch2xp, xp2torch
+from thinc.api import ArgsKwargs, Model, get_torch_default_device, torch2xp, xp2torch
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
 from thinc.types import Floats2d, Floats3d
 from torch.nn import Module
@@ -80,6 +80,7 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
     tokenizer = model.attrs["tokenizer"]
 
     texts = [doc.text for doc in X]
+    device = get_torch_default_device()
     max_length = model.attrs["max_length"]
     if max_length is not None:
         padding = "max_length"
@@ -95,7 +96,7 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
         padding=padding,
         max_length=max_length,
         truncation=False,
-    )
+    ).to(device)
     if tokenizer.is_fast:
         mappings = [
             [list(range(start, end)) for start, end in mapping]
