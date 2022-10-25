@@ -1,14 +1,10 @@
 # spacy-partial-tagger
 
-This is a library to build a CRF tagger for a partially annotated dataset in spaCy. You can build your 
-own NER tagger only from dictionary. The algorithm of this tagger is based on Effland and Collins. (2021).
-
+This is a library to build a CRF tagger for a partially annotated dataset in spaCy. You can build your own NER tagger only from dictionary. The algorithm of this tagger is based on Effland and Collins. (2021).
 
 ## Overview
 
-
-
-![](images/overview.png)
+![The overview of spacy-partial-tagger](images/overview.png)
 
 ## Dataset Preparation
 
@@ -39,6 +35,44 @@ doc_bin.add(doc)
 doc_bin.to_disk("/path/to/data.spacy")
 ```
 
+In the example above, entities are extracted by character-based matching. However, in some cases, character-based matching may not be suitable (e.g., the element symbol `na` for sodium matches name). In such cases, token-based matching can be used as follows:
+
+```py
+import spacy
+from spacy.tokens import DocBin
+from spacy_partial_tagger.tokenizer import CharacterTokenizer
+
+text = "Selegiline - induced postural hypotension in Parkinson's disease: a longitudinal study on the effects of drug withdrawal."
+patterns = [
+    {"label": "Chemical", "pattern": [{"LOWER": "selegiline"}]},
+    {"label": "Disease", "pattern": [{"LOWER": "hypotension"}]},
+    {
+        "label": "Disease",
+        "pattern": [{"LOWER": "parkinson"}, {"LOWER": "'s"}, {"LOWER": "disease"}],
+    },
+]
+
+# Add an entity ruler to the pipeline.
+nlp = spacy.blank("en")
+ruler = nlp.add_pipe("entity_ruler")
+ruler.add_patterns(patterns)
+
+# Extract entities from the text.
+doc = nlp(text)
+entities = [(ent.start_char, ent.end_char, ent.label_) for ent in doc.ents]
+
+# Create a DocBin object.
+nlp = spacy.blank("en")
+nlp.tokenizer = CharacterTokenizer(nlp.vocab)
+doc_bin = DocBin()
+doc = nlp.make_doc(text)
+doc.ents = [
+    doc.char_span(start, end, label=label) for start, end, label in entities
+]
+doc_bin.add(doc)
+doc_bin.to_disk("/path/to/data.spacy")
+```
+
 ## Training
 
 Train your model as follows:
@@ -48,8 +82,7 @@ python -m spacy train config.cfg --output outputs --paths.train /path/to/train.s
 ```
 
 You could download `config.cfg` [here](https://github.com/tech-sketch/spacy-partial-tagger/blob/main/config.cfg).
-Or you could setup your own. This library would train models through spaCy. If you are not familiar with spaCy's config file format, 
-please check the [documentation](https://spacy.io/usage/training#config).
+Or you could setup your own. This library would train models through spaCy. If you are not familiar with spaCy's config file format, please check the [documentation](https://spacy.io/usage/training#config).
 
 Don't forget to replace `/path/to/train.spacy` and `/path/to/dev.spacy` with your own.
 
