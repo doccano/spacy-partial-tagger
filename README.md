@@ -4,7 +4,7 @@ This is a library to build a CRF tagger for a partially annotated dataset in spa
 
 ## Overview
 
-![The overview of spacy-partial-tagger](images/overview.png)
+![The overview of spacy-partial-tagger](https://raw.githubusercontent.com/doccano/spacy-partial-tagger/main/images/overview.png)
 
 ## Dataset Preparation
 
