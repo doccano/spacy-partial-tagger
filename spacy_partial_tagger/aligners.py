@@ -35,9 +35,11 @@ class TransformerAligner(Aligner):
 
     """
 
-    def __init__(self, mapping: List[List[int]]) -> None:
+    def __init__(self, mapping: List[List[int]], length: int = 0) -> None:
         self.mapping = mapping
-        self.length = max(index for indices in mapping for index in indices) + 1
+        self.length = length or (
+            max(index for indices in mapping for index in indices) + 1
+        )
 
     def to_subword(self, tags: List[str]) -> List[str]:
         """Converts token-based tags to sub-word-based tags.
@@ -59,7 +61,7 @@ class TransformerAligner(Aligner):
             # [start, end]
             i = index[start]
             j = index[end]
-            assert 0 <= i and 0 <= j
+            assert 0 <= i and 0 <= j, (self.mapping, tags, offsets)
             if i == j:
                 subword_tags[i] = f"U-{label}"
             else:
@@ -76,7 +78,7 @@ class TransformerAligner(Aligner):
         """
         tags = ["O"] * self.length
         # [start, end]
-        offsets = tags_to_entities(subword_tags)
+        offsets = tags_to_entities(subword_tags[: len(self.mapping)])
         for label, start, end in offsets:
             if not self.mapping[start] or not self.mapping[end]:
                 continue
@@ -85,6 +87,8 @@ class TransformerAligner(Aligner):
             j = self.mapping[end][-1]
             if i > j:
                 continue
+            elif i >= self.length or j >= self.length:
+                break
             elif i == j:
                 tags[i] = f"U-{label}"
             else:
