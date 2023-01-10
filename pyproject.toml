@@ -15,7 +15,7 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.8"
 thinc = "^8.0.15"
-transformers = "^4.19.4"
+transformers = {extras = ["ja"], version = "^4.25.1"}
 torch = "^1.11.0"
 partial-tagger = "^0.6.0"
 spacy = {extras = ["transformers"], version = "^3.3.1"}
