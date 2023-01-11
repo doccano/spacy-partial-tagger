@@ -7,7 +7,7 @@ from thinc.api import ArgsKwargs, Model, get_torch_default_device, torch2xp, xp2
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
 from thinc.types import Floats2d, Floats3d
 from torch.nn import Module
-from transformers import AutoModel, AutoTokenizer, BatchEncoding
+from transformers import AutoModel, AutoTokenizer, BatchEncoding, BertJapaneseTokenizer
 
 from ..aligners import TransformerAligner
 from ..util import get_alignments
@@ -78,7 +78,6 @@ def init(model: Model, X: Any = None, Y: Any = None) -> None:
 
 def forward(model: Model, X: Any, is_train: bool) -> tuple:
     tokenizer = model.attrs["tokenizer"]
-
     texts = [doc.text for doc in X]
     device = get_torch_default_device()
     max_length = model.attrs["max_length"]
@@ -97,21 +96,26 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
         max_length=max_length,
         truncation=False,
     ).to(device)
+
     if tokenizer.is_fast:
+        lengths = X["attention_mask"].sum(dim=-1)
         mappings = [
-            [list(range(start, end)) for start, end in mapping]
-            for mapping in X.pop("offset_mapping")
+            [list(range(start, end)) for start, end in mapping[: lengths[i]]]
+            for i, mapping in enumerate(X.pop("offset_mapping"))
+        ]
+    elif isinstance(tokenizer, BertJapaneseTokenizer):
+        mappings = [
+            get_alignments(tokenizer, text, ids)
+            for text, ids in zip(texts, X.input_ids.tolist())
         ]
     else:
-        wordpieces = [
-            tokenizer.convert_ids_to_tokens(ids, skip_special_tokens=False)
-            for ids in X.input_ids
-        ]
-        mappings = [
-            get_alignments(list(text), wordpiece)
-            for text, wordpiece in zip(texts, wordpieces)
-        ]
-    aligners = [TransformerAligner(mapping) for mapping in mappings]
+        raise ValueError("Ordinary Tokenizers are not supported.")
+
+    lengths = [len(text) for text in texts]
+    aligners = [
+        TransformerAligner(mapping, length)
+        for mapping, length in zip(mappings, lengths)
+    ]
     Y, backward = model.layers[0](X, is_train)
     return (Y, aligners), backward
 
