@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "spacy-partial-tagger"
-version = "0.10.0"
+version = "0.11.0"
 description = "Sequence Tagger for Partially Annotated Dataset in spaCy"
 authors = ["yasufumi <yasufumi.taniguchi@gmail.com>"]
 license = "MIT"
