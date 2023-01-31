@@ -11,6 +11,7 @@ from transformers import AutoModel, AutoTokenizer, BatchEncoding, BertJapaneseTo
 
 from ..aligners import TransformerAligner
 from ..util import get_alignments
+from .constrainer import Constrainer, ConstrainerFactory, get_token_mapping
 
 
 class TransformersWrapper(Module):
@@ -33,7 +34,7 @@ def build_misaligned_tok2vec_transformer(
     *,
     mixed_precision: bool = False,
     grad_scaler: Optional[PyTorchGradScaler] = None
-) -> Model[List[Doc], Tuple[List[Floats2d], List[TransformerAligner]]]:
+) -> Model[List[Doc], Tuple[List[Floats2d], List[TransformerAligner], Constrainer]]:
     return Model(
         "misaligned_tok2vec_transformer",
         forward=forward,
@@ -49,13 +50,14 @@ def build_misaligned_tok2vec_transformer(
     )
 
 
-def init(model: Model, X: Any = None, Y: Any = None) -> None:
+def init(model: Model, X: Any = None, Y: dict = {0: "O"}) -> None:
     if model.layers:
         return
 
     model_name = model.attrs["model_name"]
 
     model.attrs["tokenizer"] = AutoTokenizer.from_pretrained(model_name)
+    model.attrs["constrainer_factory"] = ConstrainerFactory(Y)
 
     PyTorchWrapper = registry.get("layers", "PyTorchWrapper.v2")
 
@@ -78,6 +80,7 @@ def init(model: Model, X: Any = None, Y: Any = None) -> None:
 
 def forward(model: Model, X: Any, is_train: bool) -> tuple:
     tokenizer = model.attrs["tokenizer"]
+    constrainer_factory = model.attrs["constrainer_factory"]
     texts = [doc.text for doc in X]
     device = get_torch_default_device()
     max_length = model.attrs["max_length"]
@@ -85,7 +88,7 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
         padding = "max_length"
     else:
         padding = "longest"
-    X = tokenizer(
+    X_transformers = tokenizer(
         texts,
         add_special_tokens=True,
         return_token_type_ids=True,
@@ -98,15 +101,15 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
     ).to(device)
 
     if tokenizer.is_fast:
-        lengths = X["attention_mask"].sum(dim=-1)
+        lengths = X_transformers["attention_mask"].sum(dim=-1)
         mappings = [
             [list(range(start, end)) for start, end in mapping[: lengths[i]]]
-            for i, mapping in enumerate(X.pop("offset_mapping"))
+            for i, mapping in enumerate(X_transformers.pop("offset_mapping"))
         ]
     elif isinstance(tokenizer, BertJapaneseTokenizer):
         mappings = [
             get_alignments(tokenizer, text, ids)
-            for text, ids in zip(texts, X.input_ids.tolist())
+            for text, ids in zip(texts, X_transformers.input_ids.tolist())
         ]
     else:
         raise ValueError("Ordinary Tokenizers are not supported.")
@@ -116,8 +119,11 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
         TransformerAligner(mapping, length)
         for mapping, length in zip(mappings, lengths)
     ]
-    Y, backward = model.layers[0](X, is_train)
-    return (Y, aligners), backward
+    constrainer = constrainer_factory.get_constrainer(
+        [get_token_mapping(doc, mapping) for doc, mapping in zip(X, mappings)]
+    )
+    Y, backward = model.layers[0](X_transformers, is_train)
+    return (Y, aligners, constrainer), backward
 
 
 def convert_transformer_outputs(
@@ -129,7 +135,7 @@ def convert_transformer_outputs(
     _, (Yt, Lt) = inputs_outputs
 
     def convert_for_torch_backward(
-        dY: Tuple[List[Floats2d], List[TransformerAligner]]
+        dY: Tuple[List[Floats2d], List[TransformerAligner], Constrainer]
     ) -> ArgsKwargs:
         # Ignore gradients for aligners
         dY_t = xp2torch(pad(dY[0], round_to=Yt.size(1)))
