@@ -1,7 +1,7 @@
 from spacy.language import Language
 from spacy.tokens import Doc
 
-from spacy_partial_tagger.layers.decoder import build_constrained_viterbi_decoder_v1
+from spacy_partial_tagger.layers.decoder import build_viterbi_decoder_v1
 from spacy_partial_tagger.layers.encoder import build_linear_crf_encoder_v1
 from spacy_partial_tagger.layers.tok2vec_transformer import (
     build_misaligned_tok2vec_transformer,
@@ -24,7 +24,7 @@ def test_partial_tagger(nlp: Language) -> None:
     tagger = build_partial_tagger_v1(
         build_misaligned_tok2vec_transformer("distilroberta-base"),
         build_linear_crf_encoder_v1(768),
-        build_constrained_viterbi_decoder_v1(-1),
+        build_viterbi_decoder_v1(-1),
     )
     tagger.initialize(Y=tags)
 
@@ -36,9 +36,8 @@ def test_partial_tagger(nlp: Language) -> None:
             spaces=[False] * len(text),
         )
     ]
-    lengths = tagger.ops.asarray1i([len(text)])
 
-    (log_potentials, tag_indices, _), _ = tagger((docs, lengths), is_train=False)
+    (log_potentials, tag_indices, _), _ = tagger(docs, is_train=False)
 
     # 10 is the length of sub-words of text.
     assert log_potentials.shape == (1, 10, len(tags), len(tags))
