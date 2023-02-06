@@ -31,15 +31,17 @@ def forward(
     is_train: bool,
 ) -> Tuple[Tuple[Floats4d, Ints2d, Aligner], Callable]:
 
-    (embeddings, aligners, constrainer), backward1 = model.layers[0](X[0], is_train)
-
-    log_potentials, backward2 = model.layers[1]([embeddings, X[1]], is_train)
-
+    (embeddings, aligners, constrainer, subword_lengths), backward1 = model.layers[0](
+        X[0], is_train
+    )
+    log_potentials, backward2 = model.layers[1]([embeddings, subword_lengths], is_train)
     constrained_log_potentials = constrainer(model.ops, log_potentials)
 
-    tag_indices, _ = model.layers[2]([constrained_log_potentials, X[1]], is_train)
+    tag_indices, _ = model.layers[2](
+        [constrained_log_potentials, subword_lengths], is_train
+    )
 
-    def backward(dY: Tuple[Floats4d, None, None]) -> dict:
+    def backward(dY: Tuple[Floats4d, None, None, None]) -> dict:
         d_embeddings, _ = backward2(dY[0])
         return backward1([d_embeddings, None])
 

@@ -98,7 +98,7 @@ class PartialEntityRecognizer(TrainablePipe):
         )
         loss, grad = self.get_loss(examples, (log_potentials, aligners))
         # None is dummy gradients for tag indices and aligners
-        backward((grad, None, None))
+        backward((grad, None, None, None))
         if sgd is not None:
             self.finish_update(sgd)
         losses[self.name] += loss

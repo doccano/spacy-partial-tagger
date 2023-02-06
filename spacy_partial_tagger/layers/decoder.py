@@ -1,7 +1,7 @@
 from typing import Any, Callable, Dict, Optional, Tuple, cast
 
 import torch
-from partial_tagger.decoders.viterbi import ConstrainedViterbiDecoder
+from partial_tagger.decoders.viterbi import ViterbiDecoder
 from spacy.util import registry
 from thinc.api import ArgsKwargs, Model, torch2xp, xp2torch
 from thinc.shims.pytorch_grad_scaler import PyTorchGradScaler
@@ -50,9 +50,8 @@ def init(
     padding_index = model.attrs["padding_index"]
     mixed_precision = model.attrs["mixed_precision"]
     grad_scaler = model.attrs["grad_scaler"]
-
     decoder = PyTorchWrapper(
-        ConstrainedViterbiDecoder(*get_constraints(Y), padding_index=padding_index),
+        ViterbiDecoder(padding_index=padding_index),
         mixed_precision=mixed_precision,
         convert_inputs=convert_inputs,
         convert_outputs=convert_outputs,

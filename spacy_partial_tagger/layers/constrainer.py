@@ -1,5 +1,7 @@
+import copy
 from typing import Any, Dict
 
+from partial_tagger.crf import NINF
 from spacy.tokens import Doc
 from thinc.api import Ops
 from thinc.types import Floats4d, Ints1d, Ints2d, Ints3d
@@ -7,23 +9,28 @@ from thinc.util import get_array_module
 
 
 def get_token_mapping(doc: Doc, mapping: list) -> list:
-    token = []
-    char = [list(range(token.idx, token.idx + len(token.text))) for token in doc]
-    index = 0
-    indices = []
-    now = []
-    for i, x in enumerate(mapping):
-        if not x:
-            token.append([i])
+    """Returns sub-word groups."""
+    char2token = [-1] * len(doc.text)
+    for token in doc:
+        char2token[token.idx : token.idx + len(token.text)] = [token.i] * len(
+            token.text
+        )
+
+    groups = [[] for _ in range(len(doc))]
+    not_used = []
+    for subword_index, char_indices in enumerate(mapping):
+        if not char_indices:
+            not_used.append([subword_index])
             continue
-        indices.append(i)
-        now += x
-        if now == char[index]:
-            index += 1
-            token.append(indices[:])
-            indices.clear()
-            now.clear()
-    return token
+        token_indices = list(
+            range(char2token[char_indices[0]], char2token[char_indices[-1]] + 1)
+        )
+        if not token_indices:
+            continue
+        groups[token_indices[0]].append(subword_index)
+
+    groups += not_used
+    return sorted([g for g in groups if g], key=lambda g: g[0])
 
 
 def get_transition_constraints(ops: Ops, tag_dict: dict) -> Ints2d:
@@ -52,7 +59,7 @@ def get_subword_outside_state(ops: Ops, tag_dict: dict) -> Ints1d:
 def get_subword_start_state(ops: Ops, tag_dict: dict) -> Ints1d:
     state = ops.alloc1i(len(tag_dict), zeros=True)
     for i, tag in tag_dict.items():
-        if tag.startswith("B-") or tag == "O":
+        if tag.startswith(("B-", "I-")) or tag == "O":
             state[i] = 1
     return state
 
@@ -68,7 +75,7 @@ def get_subword_inside_state(ops: Ops, tag_dict: dict) -> Ints1d:
 def get_subword_end_state(ops: Ops, tag_dict: dict) -> Ints1d:
     state = ops.alloc1i(len(tag_dict), zeros=True)
     for i, tag in tag_dict.items():
-        if tag.startswith("L-") or tag == "O":
+        if tag.startswith(("L-", "I-")) or tag == "O":
             state[i] = 1
     return state
 
@@ -76,7 +83,7 @@ def get_subword_end_state(ops: Ops, tag_dict: dict) -> Ints1d:
 def get_subword_unit_state(ops: Ops, tag_dict: dict) -> Ints1d:
     state = ops.alloc1i(len(tag_dict), zeros=True)
     for i, tag in tag_dict.items():
-        if tag.startswith("U-") or tag == "O":
+        if tag.startswith(("U-", "L-", "I-", "B-")) or tag == "O":
             state[i] = 1
     return state
 
@@ -87,13 +94,16 @@ class Constrainer:
         self.mappings = mappings
 
     def __call__(self, ops: Ops, log_potentials: Floats4d) -> Floats4d:
-        transition = get_transition_constraints(ops, self.tag_dict)
+        constrained_log_potentials = copy.deepcopy(log_potentials)
+        transition = get_transition_constraints(ops, self.tag_dict)[None]  # type:ignore
         xp = get_array_module(log_potentials)
         for i, mapping in enumerate(self.mappings):
             constraint = self._mapping_to_constraint(ops, xp, mapping)
-            constraint *= transition[None]  # type:ignore
-            log_potentials[i, : constraint.shape[0]] *= constraint
-        return log_potentials
+            constraint *= transition
+            constrained_log_potentials[i, : constraint.shape[0]] = xp.where(
+                constraint, constrained_log_potentials[i, : constraint.shape[0]], NINF
+            )
+        return constrained_log_potentials
 
     def _mapping_to_constraint(self, ops: Ops, xp: Any, mapping: list) -> Ints3d:
         states = [get_subword_outside_state(ops, self.tag_dict)] * 2
@@ -113,7 +123,6 @@ class Constrainer:
         prev = xp.stack(states[:-1])
         now = xp.stack(states[1:])
         constraint = prev[..., None] * now[:, None]
-
         return constraint
 
 
