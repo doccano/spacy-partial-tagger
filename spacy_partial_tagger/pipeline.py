@@ -54,27 +54,27 @@ class PartialEntityRecognizer(TrainablePipe):
     def id_to_tag(self) -> list:
         return self.cfg["id_to_tag"]
 
-    def predict(self, docs: List[Doc]) -> Tuple[Floats2d, List[Aligner]]:
-        _, guesses, aligners = self.model.predict(docs)
-        return (guesses, aligners)
+    def predict(self, docs: List[Doc]) -> Tuple[Floats2d, Aligner]:
+        _, guesses, aligner = self.model.predict(docs)
+        return (guesses, aligner)
 
     def set_annotations(
         self,
         docs: List[Doc],
-        batch_tag_indices_aligners: Tuple[Floats2d, List[Aligner]],
+        batch_tag_indices_aligner: Tuple[Floats2d, Aligner],
     ) -> None:
-        batch_tag_indices, aligners = batch_tag_indices_aligners
-        for doc, tag_indices, aligner in zip(
-            docs, batch_tag_indices.tolist(), aligners
-        ):
-            tags = []
+        batch_tag_indices, aligner = batch_tag_indices_aligner
+        batch_subword_tags = []
+        for tag_indices in batch_tag_indices.tolist():
+            subword_tags = []
             for index in tag_indices:
                 if index < 0 or len(self.tag_to_id) <= index:
                     break
-                tags.append(self.id_to_tag[index])
-            doc.ents = biluo_tags_to_spans(
-                doc, aligner.from_subword(tags)
-            )  # type:ignore
+                subword_tags.append(self.id_to_tag[index])
+            batch_subword_tags.append(subword_tags)
+
+        for doc, tags in zip(docs, aligner.from_subword(batch_subword_tags)):
+            doc.ents = biluo_tags_to_spans(doc, tags)  # type:ignore
 
     def update(
         self,
@@ -88,8 +88,8 @@ class PartialEntityRecognizer(TrainablePipe):
             losses = {}
         losses.setdefault(self.name, 0.0)
         docs = [example.x for example in examples]
-        (log_potentials, _, aligners), backward = self.model.begin_update(docs)
-        loss, grad = self.get_loss(examples, (log_potentials, aligners))
+        (log_potentials, _, aligner), backward = self.model.begin_update(docs)
+        loss, grad = self.get_loss(examples, (log_potentials, aligner))
         # None is dummy gradients for tag indices and aligners
         backward((grad, None, None, None))
         if sgd is not None:
@@ -131,17 +131,13 @@ class PartialEntityRecognizer(TrainablePipe):
     def get_loss(
         self,
         examples: Iterable[Example],
-        scores_aligners: Tuple[Floats4d, List[Aligner]],
+        scores_aligner: Tuple[Floats4d, Aligner],
     ) -> Tuple[float, Floats4d]:
-        scores, aligners = scores_aligners
+        scores, aligner = scores_aligner
         loss_func = self.loss_func
-        batch_tags = []
-        for example, aligner in zip(examples, aligners):
-            tags = doc_to_biluo_tags(example.y)
-            tags_aligned = aligner.to_subword(tags)
-            batch_tags.append(tags_aligned)
+        batch_tags = [doc_to_biluo_tags(example.y) for example in examples]
 
-        tag_indices = self.label_indexer(batch_tags, self.tag_to_id)
+        tag_indices = self.label_indexer(aligner.to_subword(batch_tags), self.tag_to_id)
         truths = self.model.ops.asarray(tag_indices)  # type:ignore
         grad, loss = loss_func(scores, truths)  # type:ignore
         return loss.item(), grad  # type:ignore

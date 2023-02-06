@@ -9,11 +9,11 @@ class Aligner(metaclass=ABCMeta):
     """Base class for all aligners."""
 
     @abstractmethod
-    def to_subword(self, tags: List[str]) -> List[str]:
+    def to_subword(self, batch_tags: List[str]) -> List[List[str]]:
         pass
 
     @abstractmethod
-    def from_subword(self, subword_tags: List[str]) -> List[str]:
+    def from_subword(self, batch_subword_tags: List[str]) -> List[List[str]]:
         pass
 
 
@@ -76,46 +76,79 @@ class TransformerAligner(Aligner):
 
     def __init__(
         self,
-        char_offsets_token: List[List[int]],
-        char_offsets_subword: List[List[int]],
-        char_length: int,
-        token_length: int,
-        subword_length: int,
+        batch_char_offsets_token: List[List[int]],
+        batch_char_offsets_subword: List[List[int]],
+        char_lengths: List[int],
+        token_lengths: List[int],
+        subword_lengths: List[int],
     ) -> None:
 
-        self.char_offsets_token = char_offsets_token
-        self.char_offsets_subword = char_offsets_subword
-        self.char_length = char_length
-        self.token_length = token_length
-        self.subword_length = subword_length
+        self.batch_char_offsets_token = batch_char_offsets_token
+        self.batch_char_offsets_subword = batch_char_offsets_subword
+        self.char_lengths = char_lengths
+        self.token_lengths = token_lengths
+        self.subword_lengths = subword_lengths
 
-    def to_subword(self, tags: List[str]) -> List[str]:
+    def to_subword(self, batch_tags: List[List[str]]) -> List[List[str]]:
         """Converts token-based tags to sub-word-based tags.
 
         Args:
-            tags: A list of string representing tag sequence.
+            batch_tags: A list of string representing tag sequence.
         """
-        return convert_tags(
+        batch_subword_tags = []
+        for (
             tags,
-            self.char_offsets_token,
-            self.char_offsets_subword,
-            self.char_length,
-            self.subword_length,
-            False,
-        )
+            char_offsets_token,
+            char_offsets_subword,
+            char_length,
+            subword_length,
+        ) in zip(
+            batch_tags,
+            self.batch_char_offsets_token,
+            self.batch_char_offsets_subword,
+            self.char_lengths,
+            self.subword_lengths,
+        ):
+            batch_subword_tags.append(
+                convert_tags(
+                    tags,
+                    char_offsets_token,
+                    char_offsets_subword,
+                    char_length,
+                    subword_length,
+                    False,
+                )
+            )
+        return batch_subword_tags
 
-    def from_subword(self, subword_tags: List[str]) -> List[str]:
+    def from_subword(self, batch_subword_tags: List[List[str]]) -> List[List[str]]:
         """Converts sub-word-based tags to token-based tags.
 
         Args:
             subword_tags: A list of string representing tag sequence.
         """
-        # TODO: check if boundaries are fine.
-        return convert_tags(
+        batch_tags = []
+        for (
             subword_tags,
-            self.char_offsets_subword,
-            self.char_offsets_token,
-            self.char_length,
-            self.token_length,
-            True,
-        )
+            char_offsets_subword,
+            char_offsets_token,
+            char_length,
+            token_length,
+        ) in zip(
+            batch_subword_tags,
+            self.batch_char_offsets_subword,
+            self.batch_char_offsets_token,
+            self.char_lengths,
+            self.token_lengths,
+        ):
+            batch_tags.append(
+                convert_tags(
+                    subword_tags,
+                    char_offsets_subword,
+                    char_offsets_token,
+                    char_length,
+                    token_length,
+                    True,
+                )
+            )
+        return batch_tags

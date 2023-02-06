@@ -8,7 +8,7 @@ from thinc.types import Floats4d, Ints1d, Ints2d, Ints3d
 from thinc.util import get_array_module
 
 
-def get_token_mapping(doc: Doc, mapping: list) -> list:
+def group_subword_indices_by_token(doc: Doc, mapping: list) -> list:
     """Returns sub-word groups."""
     char2token = [-1] * len(doc.text)
     for token in doc:
