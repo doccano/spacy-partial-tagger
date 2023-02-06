@@ -9,7 +9,7 @@ from thinc.types import Floats2d, Floats3d, Ints1d
 from torch.nn import Module
 from transformers import AutoModel, AutoTokenizer, BatchEncoding, BertJapaneseTokenizer
 
-from ..aligners import CharHopAliginer
+from ..aligners import TransformerAligner
 from ..util import get_alignments
 from .constrainer import Constrainer, ConstrainerFactory, get_token_mapping
 
@@ -34,7 +34,7 @@ def build_misaligned_tok2vec_transformer(
     *,
     mixed_precision: bool = False,
     grad_scaler: Optional[PyTorchGradScaler] = None
-) -> Model[List[Doc], Tuple[List[Floats2d], List[CharHopAliginer], Constrainer]]:
+) -> Model[List[Doc], Tuple[List[Floats2d], List[TransformerAligner], Constrainer]]:
     return Model(
         "misaligned_tok2vec_transformer",
         forward=forward,
@@ -133,7 +133,7 @@ def forward(model: Model, X: Any, is_train: bool) -> tuple:
     ]
 
     aligners = [
-        CharHopAliginer(
+        TransformerAligner(
             char_offsets_token[i],
             char_offsets_subword[i],
             char_length,
@@ -167,7 +167,7 @@ def convert_transformer_outputs(
     _, (Yt, Lt) = inputs_outputs
 
     def convert_for_torch_backward(
-        dY: Tuple[List[Floats2d], List[CharHopAliginer], Constrainer, Ints1d]
+        dY: Tuple[List[Floats2d], List[TransformerAligner], Constrainer, Ints1d]
     ) -> ArgsKwargs:
         # Ignore gradients for aligners
         dY_t = xp2torch(pad(dY[0], round_to=Yt.size(1)))
