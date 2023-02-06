@@ -26,13 +26,13 @@ def build_partial_tagger_v1(
 
 
 def forward(
-    model: Model[Tuple[List[Doc], Ints1d], Tuple[Floats4d, Ints2d, Aligner]],
+    model: Model[List[Doc], Tuple[Floats4d, Ints2d, Aligner]],
     X: Tuple[List[Doc], Ints1d],
     is_train: bool,
 ) -> Tuple[Tuple[Floats4d, Ints2d, Aligner], Callable]:
 
     (embeddings, aligners, constrainer, subword_lengths), backward1 = model.layers[0](
-        X[0], is_train
+        X, is_train
     )
     log_potentials, backward2 = model.layers[1]([embeddings, subword_lengths], is_train)
     constrained_log_potentials = constrainer(model.ops, log_potentials)

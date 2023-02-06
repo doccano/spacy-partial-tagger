@@ -13,7 +13,7 @@ from thinc.config import Config
 from thinc.loss import Loss
 from thinc.model import Model
 from thinc.optimizers import Optimizer
-from thinc.types import Floats2d, Floats4d, Ints1d
+from thinc.types import Floats2d, Floats4d
 
 from .aligners import Aligner
 from .label_indexers import LabelIndexer
@@ -54,12 +54,8 @@ class PartialEntityRecognizer(TrainablePipe):
     def id_to_tag(self) -> list:
         return self.cfg["id_to_tag"]
 
-    def _get_lengths_from_docs(self, docs: List[Doc]) -> Ints1d:
-        return self.model.ops.asarray1i([len(doc) for doc in docs])
-
     def predict(self, docs: List[Doc]) -> Tuple[Floats2d, List[Aligner]]:
-        lengths = self._get_lengths_from_docs(docs)
-        _, guesses, aligners = self.model.predict((docs, lengths))
+        _, guesses, aligners = self.model.predict(docs)
         return (guesses, aligners)
 
     def set_annotations(
@@ -92,10 +88,7 @@ class PartialEntityRecognizer(TrainablePipe):
             losses = {}
         losses.setdefault(self.name, 0.0)
         docs = [example.x for example in examples]
-        lengths = self._get_lengths_from_docs(docs)
-        (log_potentials, _, aligners), backward = self.model.begin_update(
-            (docs, lengths)
-        )
+        (log_potentials, _, aligners), backward = self.model.begin_update(docs)
         loss, grad = self.get_loss(examples, (log_potentials, aligners))
         # None is dummy gradients for tag indices and aligners
         backward((grad, None, None, None))
@@ -128,7 +121,7 @@ class PartialEntityRecognizer(TrainablePipe):
                 self.add_label(tag.split("-")[1])
 
         self.model.initialize(
-            X=(X_small, self._get_lengths_from_docs(X_small)),
+            X=X_small,
             Y={i: tag for i, tag in enumerate(id_to_tag)},
         )
 
@@ -229,7 +222,7 @@ nI = 768
 nO = null
 
 [model.decoder]
-@architectures = "spacy-partial-tagger.ConstrainedViterbiDecoder.v1"
+@architectures = "spacy-partial-tagger.ViterbiDecoder.v1"
 padding_index = -1
 """
 DEFAULT_NER_MODEL = Config().from_str(default_model_config)["model"]

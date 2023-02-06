@@ -44,7 +44,7 @@ partial_ner = "spacy_partial_tagger.pipeline:make_partial_ner"
 "spacy-partial-tagger.MisalignedTok2VecTransformer.v1" = "spacy_partial_tagger.layers.tok2vec_transformer:build_misaligned_tok2vec_transformer"
 "spacy-partial-tagger.Tok2VecWrapper.v1" = "spacy_partial_tagger.layers.tok2vec_wrapper:build_tok2vec_wrapper"
 "spacy-partial-tagger.LinearCRFEncoder.v1" = "spacy_partial_tagger.layers.encoder:build_linear_crf_encoder_v1"
-"spacy-partial-tagger.ConstrainedViterbiDecoder.v1" = "spacy_partial_tagger.layers.decoder:build_constrained_viterbi_decoder_v1"
+"spacy-partial-tagger.ViterbiDecoder.v1" = "spacy_partial_tagger.layers.decoder:build_viterbi_decoder_v1"
 
 [tool.poetry.plugins.spacy_label_indexers]
 "spacy-partial-tagger.TransformerLabelIndexer.v1" = "spacy_partial_tagger.label_indexers:configure_transformer_label_indexer"
