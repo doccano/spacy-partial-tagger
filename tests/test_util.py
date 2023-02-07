@@ -1,14 +1,38 @@
-import spacy
-from spacy.tokens import Doc
-from transformers import AutoTokenizer
+import pytest
+from transformers import AutoTokenizer, PreTrainedTokenizer
 
-from spacy_partial_tagger.util import get_alignments, make_char_based_doc
+from spacy_partial_tagger.util import get_alignments
 
 
-def test_get_alignments_handles_unknown_tokens() -> None:
-    tokenizer = AutoTokenizer.from_pretrained(
+@pytest.fixture
+def tokenizer() -> PreTrainedTokenizer:
+    return AutoTokenizer.from_pretrained(
         "cl-tohoku/bert-base-japanese-whole-word-masking"
     )
+
+
+def test_get_alignments(tokenizer: PreTrainedTokenizer) -> None:
+    text = "日本基督教団阿佐ヶ谷教会の牧師を務める。"
+    alignment = get_alignments(tokenizer, text, tokenizer(text).input_ids)
+
+    assert alignment == [
+        [],
+        [0, 1],
+        [2, 3, 4],
+        [5],
+        [6, 7],
+        [8, 9],
+        [10, 11],
+        [12],
+        [13, 14],
+        [15],
+        [16, 17, 18],
+        [19],
+        [],
+    ]
+
+
+def test_get_alignments_handles_unknown_tokens(tokenizer: PreTrainedTokenizer) -> None:
     text = "武帝 の 時 に 貮師 将軍 李 広利 の 仮 司馬 と なっ て 匈奴 攻め に 従軍 し た 。"
     alignment = get_alignments(tokenizer, text, tokenizer(text).input_ids)
 

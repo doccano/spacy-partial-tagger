@@ -43,7 +43,7 @@ def convert_tags(
             labels_target[i_target] = labels_char[start_char]
         else:
             raise ValueError(
-                f"Multiple labels ({labels_char}) are assigned"
+                f"Multiple labels ({labels_char[start_char:end_char]}) are assigned"
                 + f"for the sub-word at {i_target}."
             )
 

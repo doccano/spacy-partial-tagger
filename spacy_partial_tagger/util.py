@@ -1,9 +1,7 @@
-from typing import List, Tuple, cast
+from typing import List, Tuple
 
 import catalogue
 import spacy_alignments as tokenizations
-from spacy.tokens import Doc, Span
-from spacy.training.iob_utils import biluo_tags_to_offsets
 from spacy.util import registry
 from transformers import PreTrainedTokenizer
 
@@ -30,10 +28,16 @@ def get_alignments(
     mapping: List[List[Tuple[int, int]]] = [[] for _ in range(len(input_ids))]
     now = 0
     for i, token in enumerate(tokens):
+        offset = 0
         for subword in tokenizer.subword_tokenizer.tokenize(token):
             if pieces[now][1] == subword:
-                mapping[pieces[now][0]].append(token2char[i])
+                cleaned_subword = subword.replace("##", "")
+                start, end = token2char[i]
+                mapping[pieces[now][0]].append(
+                    (start + offset, min(end, start + offset + len(cleaned_subword)))
+                )
                 now += 1
+                offset += len(cleaned_subword)
 
     res: List[List[int]] = []
     for m in mapping:
@@ -41,5 +45,4 @@ def get_alignments(
             res.append([])
         else:
             res.append(list(range(m[0][0], m[-1][1])))
-
     return res
