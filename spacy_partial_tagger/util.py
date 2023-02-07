@@ -43,28 +43,3 @@ def get_alignments(
             res.append(list(range(m[0][0], m[-1][1])))
 
     return res
-
-
-def make_char_based_doc(doc: Doc, tags: List[str]) -> Doc:
-    """Converts token-based doc to character-based doc.
-
-    Args:
-        doc: A token-based doc.
-        tags: A list of string representing a NER tag in BILUO format.
-
-    Returns:
-        A character-based doc
-    """
-    text = doc.text
-
-    chars = list(text)
-
-    char_doc = Doc(doc.vocab, words=chars, spaces=[False] * len(chars))
-
-    ents = []
-    for start, end, label in biluo_tags_to_offsets(doc, tags):
-        ents.append(Span(char_doc, start, end, label=label))
-
-    char_doc.ents = cast(Tuple[Span], tuple(ents))
-
-    return char_doc

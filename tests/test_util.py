@@ -39,17 +39,3 @@ def test_get_alignments_handles_unknown_tokens() -> None:
         [49],
         [],
     ]
-
-
-def test_make_char_based_doc() -> None:
-    nlp = spacy.blank("en")
-    words = "Tokyo is the capital of Japan .".split()
-    tags = ["U-LOC", "O", "O", "O", "O", "U-LOC", "O"]
-    spaces = [True] * len(words)
-    spaces[-2:] = [False] * 2
-    doc = Doc(nlp.vocab, words=words, spaces=spaces)
-
-    char_doc = make_char_based_doc(doc, tags)
-
-    assert char_doc.text == "Tokyo is the capital of Japan."
-    assert [ent.text for ent in char_doc.ents] == ["Tokyo", "Japan"]
