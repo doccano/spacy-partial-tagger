@@ -1,29 +1,68 @@
-from abc import ABC, abstractmethod
-from typing import List
+from abc import ABCMeta, abstractmethod
+from itertools import groupby
+from typing import List, Tuple
 
 from spacy.training.iob_utils import tags_to_entities
 
 
-class Aligner(ABC):
+class Aligner(metaclass=ABCMeta):
     """Base class for all aligners."""
 
     @abstractmethod
-    def to_subword(self, tags: List[str]) -> List[str]:
+    def to_subword(self, batch_tags: List[List[str]]) -> List[List[str]]:
         pass
 
     @abstractmethod
-    def from_subword(self, subword_tags: List[str]) -> List[str]:
+    def from_subword(self, batch_subword_tags: List[List[str]]) -> List[List[str]]:
         pass
 
 
-class PassThroughAligner(Aligner):
-    """Aligner for compatibility."""
+def convert_tags(
+    tags_source: List[str],
+    char_offsets_source: List[Tuple[int, int]],
+    char_offsets_target: List[Tuple[int, int]],
+    char_length: int,
+    target_length: int,
+    strict: bool = False,
+) -> List[str]:
+    labels_char = ["O"] * char_length
+    for label, start_source, end_source in tags_to_entities(tags_source):
+        start_char = char_offsets_source[start_source][0]
+        end_char = char_offsets_source[end_source][-1]
+        labels_char[start_char:end_char] = [label] * (end_char - start_char)
 
-    def to_subword(self, tags: List[str]) -> List[str]:
-        return tags
+    labels_target = ["O"] * target_length
+    for i_target, (start_char, end_char) in enumerate(char_offsets_target):
+        if start_char == end_char:
+            continue
+        labels_unique = set(labels_char[start_char:end_char])
+        if len(labels_unique) == 1:
+            labels_target[i_target] = labels_unique.pop()
+        elif not strict:
+            # add warnings
+            labels_target[i_target] = labels_char[start_char]
+        else:
+            raise ValueError(
+                f"Multiple labels ({labels_char[start_char:end_char]}) are assigned"
+                + f" for the sub-word at {i_target}."
+            )
 
-    def from_subword(self, subword_tags: List[str]) -> List[str]:
-        return subword_tags
+    # maybe Tags(labels, BILUO)
+    tags_target = []
+    for label, group in groupby(labels_target):
+        group_size = len(list(group))
+        if label == "O":
+            tags_target.extend([label] * group_size)
+        elif group_size == 1:
+            tags_target.append(f"U-{label}")
+        else:
+            tags_target.append(f"B-{label}")
+            tags_target.extend([f"I-{label}"] * (group_size - 2))
+            tags_target.append(f"L-{label}")
+
+    assert len(tags_target) == target_length
+
+    return tags_target
 
 
 class TransformerAligner(Aligner):
@@ -35,64 +74,81 @@ class TransformerAligner(Aligner):
 
     """
 
-    def __init__(self, mapping: List[List[int]], length: int = 0) -> None:
-        self.mapping = mapping
-        self.length = length or (
-            max(index for indices in mapping for index in indices) + 1
-        )
+    def __init__(
+        self,
+        batch_char_offsets_token: List[List[Tuple[int, int]]],
+        batch_char_offsets_subword: List[List[Tuple[int, int]]],
+        char_lengths: List[int],
+        token_lengths: List[int],
+        subword_lengths: List[int],
+    ) -> None:
 
-    def to_subword(self, tags: List[str]) -> List[str]:
+        self.batch_char_offsets_token = batch_char_offsets_token
+        self.batch_char_offsets_subword = batch_char_offsets_subword
+        self.char_lengths = char_lengths
+        self.token_lengths = token_lengths
+        self.subword_lengths = subword_lengths
+
+    def to_subword(self, batch_tags: List[List[str]]) -> List[List[str]]:
         """Converts token-based tags to sub-word-based tags.
 
         Args:
-            tags: A list of string representing tag sequence.
+            batch_tags: A list of string representing tag sequence.
         """
-        index = [-1] * len(tags)
-        for i, start_end in enumerate(self.mapping):
-            if not start_end:
-                continue
-            # [start, end)
-            for j in start_end:
-                index[j] = i
+        batch_subword_tags = []
+        for (
+            tags,
+            char_offsets_token,
+            char_offsets_subword,
+            char_length,
+            subword_length,
+        ) in zip(
+            batch_tags,
+            self.batch_char_offsets_token,
+            self.batch_char_offsets_subword,
+            self.char_lengths,
+            self.subword_lengths,
+        ):
+            batch_subword_tags.append(
+                convert_tags(
+                    tags,
+                    char_offsets_token,
+                    char_offsets_subword,
+                    char_length,
+                    subword_length,
+                    False,
+                )
+            )
+        return batch_subword_tags
 
-        offsets = tags_to_entities(tags)
-        subword_tags = ["O"] * len(self.mapping)
-        for label, start, end in offsets:
-            # [start, end]
-            i = index[start]
-            j = index[end]
-            assert 0 <= i and 0 <= j, (self.mapping, tags, offsets)
-            if i == j:
-                subword_tags[i] = f"U-{label}"
-            else:
-                subword_tags[i] = f"B-{label}"
-                subword_tags[i + 1 : j] = [f"I-{label}"] * (j - i - 1)
-                subword_tags[j] = f"L-{label}"
-        return subword_tags
-
-    def from_subword(self, subword_tags: List[str]) -> List[str]:
+    def from_subword(self, batch_subword_tags: List[List[str]]) -> List[List[str]]:
         """Converts sub-word-based tags to token-based tags.
 
         Args:
             subword_tags: A list of string representing tag sequence.
         """
-        tags = ["O"] * self.length
-        # [start, end]
-        offsets = tags_to_entities(subword_tags[: len(self.mapping)])
-        for label, start, end in offsets:
-            if not self.mapping[start] or not self.mapping[end]:
-                continue
-            # [mapping[i][0], mapping[i][-1]]
-            i = self.mapping[start][0]
-            j = self.mapping[end][-1]
-            if i > j:
-                continue
-            elif i >= self.length or j >= self.length:
-                break
-            elif i == j:
-                tags[i] = f"U-{label}"
-            else:
-                tags[i] = f"B-{label}"
-                tags[i + 1 : j] = [f"I-{label}"] * (j - i - 1)
-                tags[j] = f"L-{label}"
-        return tags
+        batch_tags = []
+        for (
+            subword_tags,
+            char_offsets_subword,
+            char_offsets_token,
+            char_length,
+            token_length,
+        ) in zip(
+            batch_subword_tags,
+            self.batch_char_offsets_subword,
+            self.batch_char_offsets_token,
+            self.char_lengths,
+            self.token_lengths,
+        ):
+            batch_tags.append(
+                convert_tags(
+                    subword_tags,
+                    char_offsets_subword,
+                    char_offsets_token,
+                    char_length,
+                    token_length,
+                    False,
+                )
+            )
+        return batch_tags

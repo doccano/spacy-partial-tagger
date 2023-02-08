@@ -1,7 +1,7 @@
-from spacy_partial_tagger.layers.decoder import build_constrained_viterbi_decoder_v1
+from spacy_partial_tagger.layers.decoder import build_viterbi_decoder_v1
 
 
-def test_constrained_viterbi_decoder() -> None:
+def test_viterbi_decoder() -> None:
     tags = {
         0: "O",
         1: "B-X",
@@ -13,7 +13,7 @@ def test_constrained_viterbi_decoder() -> None:
         7: "L-Y",
         8: "U-Y",
     }
-    decoder = build_constrained_viterbi_decoder_v1()
+    decoder = build_viterbi_decoder_v1()
     decoder.initialize(Y=tags)
 
     log_potentials = decoder.ops.alloc4f(3, 20, len(tags), len(tags))

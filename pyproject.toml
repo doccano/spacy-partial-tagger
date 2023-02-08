@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "spacy-partial-tagger"
-version = "0.11.0"
+version = "0.12.0"
 description = "Sequence Tagger for Partially Annotated Dataset in spaCy"
 authors = ["yasufumi <yasufumi.taniguchi@gmail.com>"]
 license = "MIT"
@@ -36,15 +36,11 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.plugins.spacy_factories]
 partial_ner = "spacy_partial_tagger.pipeline:make_partial_ner"
 
-[tool.poetry.plugins.spacy_tokenizers]
-"character_tokenizer.v1" = "spacy_partial_tagger.tokenizer:create_character_tokenizer"
-
 [tool.poetry.plugins.spacy_architectures]
 "spacy-partial-tagger.PartialTagger.v1" = "spacy_partial_tagger.tagger:build_partial_tagger_v1"
 "spacy-partial-tagger.MisalignedTok2VecTransformer.v1" = "spacy_partial_tagger.layers.tok2vec_transformer:build_misaligned_tok2vec_transformer"
-"spacy-partial-tagger.Tok2VecWrapper.v1" = "spacy_partial_tagger.layers.tok2vec_wrapper:build_tok2vec_wrapper"
 "spacy-partial-tagger.LinearCRFEncoder.v1" = "spacy_partial_tagger.layers.encoder:build_linear_crf_encoder_v1"
-"spacy-partial-tagger.ConstrainedViterbiDecoder.v1" = "spacy_partial_tagger.layers.decoder:build_constrained_viterbi_decoder_v1"
+"spacy-partial-tagger.ViterbiDecoder.v1" = "spacy_partial_tagger.layers.decoder:build_viterbi_decoder_v1"
 
 [tool.poetry.plugins.spacy_label_indexers]
 "spacy-partial-tagger.TransformerLabelIndexer.v1" = "spacy_partial_tagger.label_indexers:configure_transformer_label_indexer"
