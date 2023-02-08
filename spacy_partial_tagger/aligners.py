@@ -9,11 +9,11 @@ class Aligner(metaclass=ABCMeta):
     """Base class for all aligners."""
 
     @abstractmethod
-    def to_subword(self, batch_tags: List[str]) -> List[List[str]]:
+    def to_subword(self, batch_tags: List[List[str]]) -> List[List[str]]:
         pass
 
     @abstractmethod
-    def from_subword(self, batch_subword_tags: List[str]) -> List[List[str]]:
+    def from_subword(self, batch_subword_tags: List[List[str]]) -> List[List[str]]:
         pass
 
 
@@ -76,8 +76,8 @@ class TransformerAligner(Aligner):
 
     def __init__(
         self,
-        batch_char_offsets_token: List[List[int]],
-        batch_char_offsets_subword: List[List[int]],
+        batch_char_offsets_token: List[List[Tuple[int, int]]],
+        batch_char_offsets_subword: List[List[Tuple[int, int]]],
         char_lengths: List[int],
         token_lengths: List[int],
         subword_lengths: List[int],

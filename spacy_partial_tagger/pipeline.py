@@ -1,4 +1,4 @@
-from typing import Callable, Iterable, List, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 import srsly
 from spacy import util
@@ -81,8 +81,8 @@ class PartialEntityRecognizer(TrainablePipe):
         examples: Iterable[Example],
         *,
         drop: float = 0.0,
-        sgd: Optimizer = None,
-        losses: dict = None,
+        sgd: Optional[Optimizer] = None,
+        losses: Optional[Dict[str, float]] = None,
     ) -> dict:
         if losses is None:
             losses = {}
@@ -98,7 +98,7 @@ class PartialEntityRecognizer(TrainablePipe):
         return losses
 
     def initialize(
-        self, get_examples: Callable, *, nlp: Language, labels: dict = None
+        self, get_examples: Callable, *, nlp: Language, labels: Optional[dict] = None
     ) -> None:
         tag_to_id: dict = {"O": getattr(self.loss_func, "outside_index", 0)}
         id_to_tag: list = ["O"]

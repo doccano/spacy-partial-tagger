@@ -1,5 +1,5 @@
 import copy
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from partial_tagger.crf import NINF
 from spacy.tokens import Doc
@@ -16,7 +16,7 @@ def group_subword_indices_by_token(doc: Doc, mapping: list) -> list:
             token.text
         )
 
-    groups = [[] for _ in range(len(doc))]
+    groups: List[List[int]] = [[] for _ in range(len(doc))]
     not_used = []
     for subword_index, char_indices in enumerate(mapping):
         if not char_indices:
