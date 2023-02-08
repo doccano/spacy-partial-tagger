@@ -44,7 +44,7 @@ def convert_tags(
         else:
             raise ValueError(
                 f"Multiple labels ({labels_char[start_char:end_char]}) are assigned"
-                + f"for the sub-word at {i_target}."
+                + f" for the sub-word at {i_target}."
             )
 
     # maybe Tags(labels, BILUO)
@@ -148,7 +148,7 @@ class TransformerAligner(Aligner):
                     char_offsets_token,
                     char_length,
                     token_length,
-                    True,
+                    False,
                 )
             )
         return batch_tags
