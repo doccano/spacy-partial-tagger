@@ -39,10 +39,10 @@ pytest-cov = "^3.0.0"
 ruff = "^0.0.270"
 
 [tool.poetry.plugins.spacy_factories]
-partial_ner2 = "spacy_partial_tagger.pipeline2:make_partial_ner"
+partial_ner = "spacy_partial_tagger.pipeline:make_partial_ner"
 
 [tool.poetry.plugins.spacy_architectures]
-"spacy-partial-tagger.PartialTagger.v2" = "spacy_partial_tagger.tagger2:build_partial_tagger_v2"
+"spacy-partial-tagger.PartialTagger.v1" = "spacy_partial_tagger.tagger:build_partial_tagger_v1"
 
 [tool.mypy]
 ignore_missing_imports = true
