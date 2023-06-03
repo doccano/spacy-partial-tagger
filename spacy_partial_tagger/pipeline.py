@@ -203,7 +203,7 @@ class PartialEntityRecognizer(TrainablePipe):
 
 default_model_config = """
 [model]
-@architectures = "spacy-partial-tagger.PartialTagger.v2"
+@architectures = "spacy-partial-tagger.PartialTagger.v1"
 transformer_model_name = "roberta-base"
 padding_index = -1
 """
@@ -211,7 +211,7 @@ DEFAULT_NER_MODEL = Config().from_str(default_model_config)["model"]
 
 
 @Language.factory(
-    "partial_ner2",
+    "partial_ner",
     assigns=["doc.ents", "token.ent_iob", "token.ent_type"],
     default_config={
         "model": DEFAULT_NER_MODEL,
