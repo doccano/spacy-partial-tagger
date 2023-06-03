@@ -1,22 +1,23 @@
-from typing import Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple, cast
 
 import srsly
+import torch
+from partial_tagger.data import CharBasedTags, LabelSet
+from partial_tagger.data.batch.tag import TagFactory
+from partial_tagger.training import expected_entity_ratio_loss
+from partial_tagger.utils import create_tag
 from spacy import util
 from spacy.errors import Errors
 from spacy.language import Language
 from spacy.pipeline import TrainablePipe
 from spacy.tokens import Doc
 from spacy.training import Example
-from spacy.training.iob_utils import biluo_tags_to_spans, doc_to_biluo_tags
 from spacy.vocab import Vocab
+from thinc.api import torch2xp, xp2torch
 from thinc.config import Config
-from thinc.loss import Loss
 from thinc.model import Model
 from thinc.optimizers import Optimizer
 from thinc.types import Floats2d, Floats4d
-
-from .aligners import Aligner
-from .label_indexers import LabelIndexer
 
 
 class PartialEntityRecognizer(TrainablePipe):
@@ -25,56 +26,42 @@ class PartialEntityRecognizer(TrainablePipe):
         vocab: Vocab,
         model: Model,
         name: str,
-        loss: Loss,
         scorer: Callable,
-        label_indexer: LabelIndexer,
+        padding_index: int = -1,
+        unknown_index: int = -100,
     ) -> None:
         self.vocab = vocab
         self.model = model
         self.name = name
-        self.loss_func = loss
         self.scorer = scorer
-        self.label_indexer = label_indexer
-
-        self.cfg: dict = {
-            "labels": [],
-            "tag_to_id": {},
-            "id_to_tag": [],
-        }
+        self.cfg: Dict[str, List[str]] = {"labels": []}
 
     @property
-    def labels(self) -> list:
-        return self.cfg["labels"]
+    def label_set(self) -> LabelSet:
+        return LabelSet(set(self.cfg["labels"]))
 
-    @property
-    def tag_to_id(self) -> dict:
-        return self.cfg["tag_to_id"]
-
-    @property
-    def id_to_tag(self) -> list:
-        return self.cfg["id_to_tag"]
-
-    def predict(self, docs: List[Doc]) -> Tuple[Floats2d, Aligner]:
-        _, guesses, aligner = self.model.predict(docs)
-        return (guesses, aligner)
+    def predict(self, docs: List[Doc]) -> Floats2d:
+        (_, tag_indices) = self.model.predict(docs)
+        return tag_indices
 
     def set_annotations(
         self,
         docs: List[Doc],
-        batch_tag_indices_aligner: Tuple[Floats2d, Aligner],
+        tag_indices: Floats2d,
     ) -> None:
-        batch_tag_indices, aligner = batch_tag_indices_aligner
-        batch_subword_tags = []
-        for tag_indices in batch_tag_indices.tolist():
-            subword_tags = []
-            for index in tag_indices:
-                if index < 0 or len(self.tag_to_id) <= index:
-                    break
-                subword_tags.append(self.id_to_tag[index])
-            batch_subword_tags.append(subword_tags)
+        tokenized_texts = [doc.user_data["tokenized_text"] for doc in docs]
+        tag_factory = TagFactory(tokenized_texts, self.label_set)
 
-        for doc, tags in zip(docs, aligner.from_subword(batch_subword_tags)):
-            doc.ents = biluo_tags_to_spans(doc, tags)  # type:ignore
+        tags_collection = tag_factory.create_char_based_tags(tag_indices)
+
+        for doc, tags in zip(docs, tags_collection):
+            ents = []
+            for tag in tags:
+                span = doc.char_span(tag.start, tag.start + tag.length, tag.label)
+                if span:
+                    ents.append(span)
+            if ents:
+                doc.ents = tuple(ents)  # type:ignore
 
     def update(
         self,
@@ -87,11 +74,13 @@ class PartialEntityRecognizer(TrainablePipe):
         if losses is None:
             losses = {}
         losses.setdefault(self.name, 0.0)
+
         docs = [example.x for example in examples]
-        (log_potentials, _, aligner), backward = self.model.begin_update(docs)
-        loss, grad = self.get_loss(examples, (log_potentials, aligner))
-        # None is dummy gradients for tag indices and aligners
-        backward((grad, None, None, None))
+        (log_potentials, _), backward = self.model.begin_update(docs)
+
+        loss, grad = self.get_loss(examples, log_potentials)
+        backward((grad, None))
+
         if sgd is not None:
             self.finish_update(sgd)
         losses[self.name] += loss
@@ -100,57 +89,67 @@ class PartialEntityRecognizer(TrainablePipe):
     def initialize(
         self, get_examples: Callable, *, nlp: Language, labels: Optional[dict] = None
     ) -> None:
-        tag_to_id: dict = {"O": getattr(self.loss_func, "outside_index", 0)}
-        id_to_tag: list = ["O"]
         X_small: List[Doc] = []
+        label: Set[str] = set()
         for example in get_examples():
             if len(X_small) < 10:
                 X_small.append(example.x)
-            for tag in doc_to_biluo_tags(example.y):
-                if tag not in tag_to_id:
-                    _, label = tag.split("-")
-                    for prefix in ["B-", "I-", "L-", "U-"]:
-                        if prefix + label not in tag_to_id:
-                            id_to_tag.append(prefix + label)
-                            tag_to_id[prefix + label] = len(tag_to_id)
+            for entity in example.y.ents:
+                if entity.label_ not in label:
+                    label.add(entity.label_)
 
-        for tag in tag_to_id:
-            if tag == "O":
-                self.add_label(tag)
-            else:
-                self.add_label(tag.split("-")[1])
+        self.cfg["labels"] = list(label)
 
         self.model.initialize(
             X=X_small,
-            Y={i: tag for i, tag in enumerate(id_to_tag)},
+            Y=self.label_set,
         )
 
-        self.cfg["tag_to_id"] = tag_to_id
-        self.cfg["id_to_tag"] = id_to_tag
-
     def get_loss(
-        self,
-        examples: Iterable[Example],
-        scores_aligner: Tuple[Floats4d, Aligner],
+        self, examples: Iterable[Example], scores: Floats4d
     ) -> Tuple[float, Floats4d]:
-        scores, aligner = scores_aligner
-        loss_func = self.loss_func
-        batch_tags = [doc_to_biluo_tags(example.y) for example in examples]
+        scores_pt = xp2torch(scores, requires_grad=True)
 
-        tag_indices = self.label_indexer(aligner.to_subword(batch_tags), self.tag_to_id)
-        truths = self.model.ops.asarray(tag_indices)  # type:ignore
-        grad, loss = loss_func(scores, truths)  # type:ignore
-        return loss.item(), grad  # type:ignore
+        tokenized_texts = [
+            example.x.user_data["tokenized_text"] for example in examples
+        ]
+        tag_factory = TagFactory(tokenized_texts, self.label_set)
+
+        tags_collection = []
+        for example in examples:
+            tags = tuple(
+                create_tag(ent.start_char, len(ent.text), ent.label_)
+                for ent in example.y.ents
+            )
+            tags_collection.append(CharBasedTags(tags, example.y.text))
+
+        lengths = [text.num_tokens for text in tokenized_texts]
+        max_length = max(lengths)
+        mask = torch.tensor(
+            [[True] * length + [False] * (max_length - length) for length in lengths],
+            device=scores_pt.device,
+        )
+
+        tag_bitmap = tag_factory.create_tag_bitmap(
+            tuple(tags_collection), scores_pt.device
+        )
+
+        loss = expected_entity_ratio_loss(
+            scores_pt, tag_bitmap, mask, self.label_set.get_outside_index()
+        )
+
+        (grad,) = torch.autograd.grad(loss, scores_pt)
+
+        return loss.item(), cast(Floats4d, torch2xp(grad))
 
     def add_label(self, label: str) -> int:
-        if label in self.labels:
+        if label in self.cfg["labels"]:
             return 0
-        self.labels.append(label)
-        self.vocab.strings.add(label)
+        self.cfg["labels"].append(label)
         return 1
 
     def from_bytes(
-        self, bytes_data: bytes, *, exclude: tuple = tuple()
+        self, bytes_data: bytes, *, exclude: tuple = ()
     ) -> "PartialEntityRecognizer":
 
         self._validate_serialization_attrs()
@@ -169,7 +168,7 @@ class PartialEntityRecognizer(TrainablePipe):
         )
 
         util.from_bytes(bytes_data, deserialize, exclude)
-        self.model.initialize(Y={i: tag for i, tag in enumerate(self.id_to_tag)})
+        self.model.initialize(Y=self.label_set)
 
         model_deserializers = {
             "model": lambda b: self.model.from_bytes(b),
@@ -177,9 +176,7 @@ class PartialEntityRecognizer(TrainablePipe):
         util.from_bytes(bytes_data, model_deserializers, exclude)
         return self
 
-    def from_disk(
-        self, path: str, exclude: tuple = tuple()
-    ) -> "PartialEntityRecognizer":
+    def from_disk(self, path: str, exclude: tuple = ()) -> "PartialEntityRecognizer":
         self._validate_serialization_attrs()
 
         def load_model(p: str) -> None:
@@ -196,7 +193,7 @@ class PartialEntityRecognizer(TrainablePipe):
             p, exclude=exclude
         )
         util.from_disk(path, deserialize, exclude)
-        self.model.initialize(Y={i: tag for i, tag in enumerate(self.id_to_tag)})
+        self.model.initialize(Y=self.label_set)
         model_deserializers = {
             "model": load_model,
         }
@@ -207,18 +204,7 @@ class PartialEntityRecognizer(TrainablePipe):
 default_model_config = """
 [model]
 @architectures = "spacy-partial-tagger.PartialTagger.v1"
-
-[model.misaligned_tok2vec]
-@architectures = "spacy-partial-tagger.MisalignedTok2VecTransformer.v1"
-model_name = "roberta-base"
-
-[model.encoder]
-@architectures = "spacy-partial-tagger.LinearCRFEncoder.v1"
-nI = 768
-nO = null
-
-[model.decoder]
-@architectures = "spacy-partial-tagger.ViterbiDecoder.v1"
+transformer_model_name = "roberta-base"
 padding_index = -1
 """
 DEFAULT_NER_MODEL = Config().from_str(default_model_config)["model"]
@@ -229,18 +215,7 @@ DEFAULT_NER_MODEL = Config().from_str(default_model_config)["model"]
     assigns=["doc.ents", "token.ent_iob", "token.ent_type"],
     default_config={
         "model": DEFAULT_NER_MODEL,
-        "loss": {
-            "@losses": "spacy-partial-tagger.ExpectedEntityRatioLoss.v1",
-            "padding_index": -1,
-            "unknown_index": -100,
-            "outside_index": 0,
-        },
         "scorer": {"@scorers": "spacy.ner_scorer.v1"},
-        "label_indexer": {
-            "@label_indexers": "spacy-partial-tagger.TransformerLabelIndexer.v1",
-            "padding_index": -1,
-            "unknown_index": -100,
-        },
     },
     default_score_weights={
         "ents_f": 1.0,
@@ -253,15 +228,10 @@ def make_partial_ner(
     nlp: Language,
     name: str,
     model: Model,
-    loss: Loss,
     scorer: Callable,
-    label_indexer: LabelIndexer,
+    padding_index: int = -1,
+    unknown_index: int = -100,
 ) -> PartialEntityRecognizer:
     return PartialEntityRecognizer(
-        nlp.vocab,
-        model,
-        name,
-        loss,
-        scorer,
-        label_indexer,
+        nlp.vocab, model, name, scorer, padding_index, unknown_index
     )

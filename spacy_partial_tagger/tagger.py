@@ -1,57 +1,105 @@
-from typing import Any, Callable, List, Tuple
+from functools import partial
+from typing import Any, Callable, List, Optional, Tuple, cast
 
+from partial_tagger.data import LabelSet
+from partial_tagger.data.batch.text import BaseTokenizer
+from partial_tagger.utils import create_tagger
 from spacy.tokens import Doc
 from spacy.util import registry
-from thinc.api import Model
-from thinc.types import Floats2d, Floats4d, Ints1d, Ints2d
+from thinc.api import Model, get_torch_default_device, torch2xp, xp2torch
+from thinc.shims import PyTorchGradScaler, PyTorchShim
+from thinc.types import ArgsKwargs, Floats4d, Ints2d
+from thinc.util import convert_recursive, is_torch_array, is_xp_array
 
-from .aligners import Aligner
-from .layers.constrainer import Constrainer
+from .tokenizer import get_tokenizer
 
 
 @registry.architectures.register("spacy-partial-tagger.PartialTagger.v1")
 def build_partial_tagger_v1(
-    misaligned_tok2vec: Model[
-        List[Doc], Tuple[List[Floats2d], List[Aligner], Constrainer]
-    ],
-    encoder: Model[Tuple[List[Floats2d], Ints1d], Floats4d],
-    decoder: Model[Tuple[Floats4d, Ints1d], Ints2d],
-) -> Model[Tuple[List[Doc], Ints1d], Tuple[Floats4d, Ints2d, Aligner]]:
+    transformer_model_name: str,
+    padding_index: int,
+    tokenizer_args: Optional[dict] = None,
+    *,
+    mixed_precision: bool = False,
+    grad_scaler: Optional[PyTorchGradScaler] = None,
+) -> Model[List[Doc], Tuple[Floats4d, Ints2d]]:
     return Model(
         name="partial_tagger",
         forward=forward,
         init=init,
-        layers=[misaligned_tok2vec, encoder, decoder],
+        attrs={
+            "transformer_model_name": transformer_model_name,
+            "padding_index": padding_index,
+            "tokenizer_args": tokenizer_args,
+            "mixed_precision": mixed_precision,
+            "grad_scaler": grad_scaler,
+        },
     )
 
 
 def forward(
-    model: Model[List[Doc], Tuple[Floats4d, Ints2d, Aligner]],
-    X: Tuple[List[Doc], Ints1d],
+    model: Model[List[Doc], Tuple[Floats4d, Ints2d]],
+    X: List[Doc],
     is_train: bool,
-) -> Tuple[Tuple[Floats4d, Ints2d, Aligner], Callable]:
+) -> Tuple[Tuple[Floats4d, Ints2d], Callable]:
 
-    (embeddings, aligners, constrainer, subword_lengths), backward1 = model.layers[0](
-        X, is_train
+    tokenizer: BaseTokenizer = model.attrs["tokenizer"]
+
+    tokenized_texts = tokenizer(tuple(doc.text for doc in X))
+
+    for doc, text in zip(X, tokenized_texts.tokenized_texts):
+        doc.user_data["tokenized_text"] = text
+
+    device = get_torch_default_device()
+
+    (log_potentials, tag_indices), backward = model.layers[0](
+        [tokenized_texts.get_tagger_inputs(device), tokenized_texts.get_mask(device)],
+        is_train,
     )
-    log_potentials, backward2 = model.layers[1]([embeddings, subword_lengths], is_train)
-    constrained_log_potentials = constrainer(model.ops, log_potentials)
 
-    tag_indices, _ = model.layers[2](
-        [constrained_log_potentials, subword_lengths], is_train
-    )
-
-    def backward(dY: Tuple[Floats4d, None, None, None]) -> dict:
-        d_embeddings, _ = backward2(dY[0])
-        return backward1([d_embeddings, None])
-
-    return (log_potentials, tag_indices, aligners), backward
+    return (log_potentials, tag_indices), backward
 
 
 def init(
-    model: Model[Tuple[List[Doc], Ints1d], Tuple[Floats4d, Ints2d, Aligner]],
-    X: Any = None,
-    Y: Any = None,
+    model: Model[List[Doc], Tuple[Floats4d, Ints2d]],
+    X: List[Doc],
+    Y: LabelSet,
 ) -> None:
-    for layer in model.layers:
-        layer.initialize(X, Y)
+    if model.layers:
+        return
+
+    transformer_model_name = model.attrs["transformer_model_name"]
+    padding_index = model.attrs["padding_index"]
+    tokenizer_args = model.attrs["tokenizer_args"]
+    mixed_precision = model.attrs["mixed_precision"]
+    grad_scaler = model.attrs["grad_scaler"]
+
+    model.attrs["tokenizer"] = get_tokenizer(transformer_model_name, tokenizer_args)
+
+    tagger = create_tagger(transformer_model_name, Y, padding_index)
+    PyTorchWrapper = registry.get("layers", "PyTorchWrapper.v2")
+
+    model._layers = [
+        PyTorchWrapper(
+            tagger,
+            mixed_precision=mixed_precision,
+            grad_scaler=grad_scaler,
+            convert_outputs=convert_tagger_outputs,
+        )
+    ]
+
+
+def convert_tagger_outputs(
+    model: Model[List[Doc], Tuple[Floats4d, Ints2d]], X_Ytorch: Any, is_train: bool
+) -> tuple:
+    shim = cast(PyTorchShim, model.shims[0])
+    X, Ytorch = X_Ytorch
+    Y = convert_recursive(is_torch_array, torch2xp, Ytorch)
+
+    def reverse_conversion(dY: Any) -> ArgsKwargs:
+        dYtorch = convert_recursive(
+            is_xp_array, partial(xp2torch, device=shim.device), dY
+        )
+        return ArgsKwargs(args=((Ytorch[0]),), kwargs={"grad_tensors": dYtorch[0]})
+
+    return Y, reverse_conversion

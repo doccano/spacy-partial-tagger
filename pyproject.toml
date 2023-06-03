@@ -1,3 +1,11 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "spacy-partial-tagger"
+requires-python = ">=3.8"
+
 [tool.poetry]
 name = "spacy-partial-tagger"
 version = "0.12.0"
@@ -16,37 +24,25 @@ classifiers = [
 python = "^3.8"
 thinc = "^8.0.15"
 transformers = {extras = ["ja"], version = "^4.25.1"}
-torch = "^1.11.0"
-partial-tagger = "^0.6.0"
+torch = "^2.0.1"
 spacy = {extras = ["transformers"], version = "^3.3.1"}
 spacy-alignments = "^0.8.5"
+pytorch-partial-tagger = "^0.1.5"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.3.0"
 black = "^22.3.0"
 pytest = "^7.1.1"
 isort = "^5.10.1"
 flake8 = "^4.0.1"
-mypy = "^0.942"
 pytest-cov = "^3.0.0"
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+ruff = "^0.0.270"
 
 [tool.poetry.plugins.spacy_factories]
 partial_ner = "spacy_partial_tagger.pipeline:make_partial_ner"
 
 [tool.poetry.plugins.spacy_architectures]
 "spacy-partial-tagger.PartialTagger.v1" = "spacy_partial_tagger.tagger:build_partial_tagger_v1"
-"spacy-partial-tagger.MisalignedTok2VecTransformer.v1" = "spacy_partial_tagger.layers.tok2vec_transformer:build_misaligned_tok2vec_transformer"
-"spacy-partial-tagger.LinearCRFEncoder.v1" = "spacy_partial_tagger.layers.encoder:build_linear_crf_encoder_v1"
-"spacy-partial-tagger.ViterbiDecoder.v1" = "spacy_partial_tagger.layers.decoder:build_viterbi_decoder_v1"
-
-[tool.poetry.plugins.spacy_label_indexers]
-"spacy-partial-tagger.TransformerLabelIndexer.v1" = "spacy_partial_tagger.label_indexers:configure_transformer_label_indexer"
-
-[tool.poetry.plugins.thinc_losses]
-"spacy-partial-tagger.ExpectedEntityRatioLoss.v1" = "spacy_partial_tagger.loss:configure_ExpectedEntityRatioLoss"
 
 [tool.mypy]
 ignore_missing_imports = true
@@ -72,6 +68,21 @@ exclude = '''
   | dist
 )/
 '''
+
+[tool.ruff]
+line-length = 88
+select = [
+  "E",  # pycodestyle errors
+  "W",  # pycodestyle warnings
+  "F",  # pyflakes
+  "I",  # isort
+  "C",  # flake8-comprehensions
+  "B",  # flake8-bugbear
+]
+ignore = ["E501"]
+
+[tool.ruff.mccabe]
+max-complexity = 18
 
 [tool.pytest.ini_options]
 testpaths = [
