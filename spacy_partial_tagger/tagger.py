@@ -14,8 +14,8 @@ from thinc.util import convert_recursive, is_torch_array, is_xp_array
 from .tokenizer import get_tokenizer
 
 
-@registry.architectures.register("spacy-partial-tagger.PartialTagger.v2")
-def build_partial_tagger_v2(
+@registry.architectures.register("spacy-partial-tagger.PartialTagger.v1")
+def build_partial_tagger_v1(
     transformer_model_name: str,
     padding_index: int,
     tokenizer_args: Optional[dict] = None,
