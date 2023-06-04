@@ -4,8 +4,8 @@ import torch
 from partial_tagger.data import Span, TokenizedText
 from partial_tagger.data.batch.text import (
     BaseTokenizer,
-    Texts,
     TextBatch,
+    Texts,
     TransformerTokenizer,
 )
 from transformers import AutoTokenizer
