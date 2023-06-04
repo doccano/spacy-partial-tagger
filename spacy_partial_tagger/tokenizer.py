@@ -4,8 +4,8 @@ import torch
 from partial_tagger.data import Span, TokenizedText
 from partial_tagger.data.batch.text import (
     BaseTokenizer,
+    TextBatch,
     Texts,
-    TokenizedTexts,
     TransformerTokenizer,
 )
 from transformers import AutoTokenizer
@@ -31,7 +31,7 @@ class BertJapaneseTokenizer(BaseTokenizer):
         }
         self.__tokenizer_args["return_offsets_mapping"] = True
 
-    def __call__(self, texts: Texts) -> TokenizedTexts:
+    def __call__(self, texts: Texts) -> TextBatch:
         batch_encoding = self.__tokenizer(texts, **self.__tokenizer_args)
 
         pad_token_id = self.__tokenizer.pad_token_id
@@ -62,7 +62,7 @@ class BertJapaneseTokenizer(BaseTokenizer):
         mask = torch.tensor(
             [[True] * length + [False] * (max_length - length) for length in lengths]
         )
-        return TokenizedTexts(tuple(tokenized_texts), batch_encoding, mask)
+        return TextBatch(tuple(tokenized_texts), batch_encoding, mask)
 
 
 def get_tokenizer(

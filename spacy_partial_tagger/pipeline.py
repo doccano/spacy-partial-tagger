@@ -52,9 +52,9 @@ class PartialEntityRecognizer(TrainablePipe):
         tokenized_texts = [doc.user_data["tokenized_text"] for doc in docs]
         tag_factory = TagFactory(tokenized_texts, self.label_set)
 
-        tags_collection = tag_factory.create_char_based_tags(tag_indices)
+        tags_batch = tag_factory.create_char_based_tags(tag_indices)
 
-        for doc, tags in zip(docs, tags_collection):
+        for doc, tags in zip(docs, tags_batch):
             ents = []
             for tag in tags:
                 span = doc.char_span(tag.start, tag.start + tag.length, tag.label)
@@ -115,13 +115,13 @@ class PartialEntityRecognizer(TrainablePipe):
         ]
         tag_factory = TagFactory(tokenized_texts, self.label_set)
 
-        tags_collection = []
+        tags_batch = []
         for example in examples:
             tags = tuple(
                 create_tag(ent.start_char, len(ent.text), ent.label_)
                 for ent in example.y.ents
             )
-            tags_collection.append(CharBasedTags(tags, example.y.text))
+            tags_batch.append(CharBasedTags(tags, example.y.text))
 
         lengths = [text.num_tokens for text in tokenized_texts]
         max_length = max(lengths)
@@ -130,9 +130,7 @@ class PartialEntityRecognizer(TrainablePipe):
             device=scores_pt.device,
         )
 
-        tag_bitmap = tag_factory.create_tag_bitmap(
-            tuple(tags_collection), scores_pt.device
-        )
+        tag_bitmap = tag_factory.create_tag_bitmap(tuple(tags_batch), scores_pt.device)
 
         loss = expected_entity_ratio_loss(
             scores_pt, tag_bitmap, mask, self.label_set.get_outside_index()
