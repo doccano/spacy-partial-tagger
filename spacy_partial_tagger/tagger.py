@@ -45,15 +45,15 @@ def forward(
 
     tokenizer: BaseTokenizer = model.attrs["tokenizer"]
 
-    tokenized_texts = tokenizer(tuple(doc.text for doc in X))
+    text_batch = tokenizer(tuple(doc.text for doc in X))
 
-    for doc, text in zip(X, tokenized_texts.tokenized_texts):
+    for doc, text in zip(X, text_batch.tokenized_texts):
         doc.user_data["tokenized_text"] = text
 
     device = get_torch_default_device()
 
     (log_potentials, tag_indices), backward = model.layers[0](
-        [tokenized_texts.get_tagger_inputs(device), tokenized_texts.get_mask(device)],
+        [text_batch.get_tagger_inputs(device), text_batch.get_mask(device)],
         is_train,
     )
 
