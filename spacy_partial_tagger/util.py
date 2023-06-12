@@ -1,13 +1,27 @@
 from typing import List, Tuple
 
-import catalogue
 import spacy_alignments as tokenizations
-from spacy.util import registry
+from partial_tagger.data import LabelSet
+from partial_tagger.decoders.viterbi import Contrainer, ViterbiDecoder
+from partial_tagger.encoders.transformer import TransformerModelEncoderFactory
+from partial_tagger.tagger import SequenceTagger
 from transformers import PreTrainedTokenizer
 
-registry.label_indexers = catalogue.create(  # type:ignore
-    "spacy", "label_indexers", entry_points=True
-)
+
+def create_tagger(
+    model_name: str, label_set: LabelSet, padding_index: int
+) -> SequenceTagger:
+    return SequenceTagger(
+        TransformerModelEncoderFactory(model_name).create(label_set),
+        ViterbiDecoder(
+            padding_index,
+            Contrainer(
+                label_set.get_start_states(),
+                label_set.get_end_states(),
+                label_set.get_transitions(),
+            ),
+        ),
+    )
 
 
 def get_alignments(

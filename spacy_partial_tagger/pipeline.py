@@ -3,7 +3,8 @@ from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple, cast
 import srsly
 import torch
 from partial_tagger.data import CharBasedTags, LabelSet
-from partial_tagger.data.batch.tag import TagFactory
+from partial_tagger.data.batch.tag import TagsBatch
+from partial_tagger.data.batch.text import create_token_based_tags
 from partial_tagger.training import expected_entity_ratio_loss
 from partial_tagger.utils import create_tag
 from spacy import util
@@ -34,6 +35,8 @@ class PartialEntityRecognizer(TrainablePipe):
         self.model = model
         self.name = name
         self.scorer = scorer
+        self.padding_index = padding_index
+        self.unknown_index = unknown_index
         self.cfg: Dict[str, List[str]] = {"labels": []}
 
     @property
@@ -50,9 +53,10 @@ class PartialEntityRecognizer(TrainablePipe):
         tag_indices: Floats2d,
     ) -> None:
         tokenized_texts = [doc.user_data["tokenized_text"] for doc in docs]
-        tag_factory = TagFactory(tokenized_texts, self.label_set)
 
-        tags_batch = tag_factory.create_char_based_tags(tag_indices)
+        tags_batch = create_token_based_tags(
+            tokenized_texts, tag_indices, self.label_set, self.padding_index
+        )
 
         for doc, tags in zip(docs, tags_batch):
             ents = []
@@ -110,27 +114,30 @@ class PartialEntityRecognizer(TrainablePipe):
     ) -> Tuple[float, Floats4d]:
         scores_pt = xp2torch(scores, requires_grad=True)
 
-        tokenized_texts = [
-            example.x.user_data["tokenized_text"] for example in examples
-        ]
-        tag_factory = TagFactory(tokenized_texts, self.label_set)
-
-        tags_batch = []
+        token_based_tags = []
+        lengths = []
         for example in examples:
             tags = tuple(
                 create_tag(ent.start_char, len(ent.text), ent.label_)
                 for ent in example.y.ents
             )
-            tags_batch.append(CharBasedTags(tags, example.y.text))
+            tokenized_text = example.x.user_data["tokenized_text"]
+            token_based_tags.append(
+                CharBasedTags(tags, example.x.text).convert_to_token_based(
+                    tokenized_text
+                )
+            )
+            lengths.append(tokenized_text.num_tokens)
 
-        lengths = [text.num_tokens for text in tokenized_texts]
+        tags_batch = TagsBatch(tuple(token_based_tags), self.label_set)
+        tags_batch.to(scores_pt.device)
+        tag_bitmap = tags_batch.get_tag_bitmap()
+
         max_length = max(lengths)
         mask = torch.tensor(
             [[True] * length + [False] * (max_length - length) for length in lengths],
             device=scores_pt.device,
         )
-
-        tag_bitmap = tag_factory.create_tag_bitmap(tuple(tags_batch), scores_pt.device)
 
         loss = expected_entity_ratio_loss(
             scores_pt, tag_bitmap, mask, self.label_set.get_outside_index()

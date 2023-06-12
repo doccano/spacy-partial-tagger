@@ -1,11 +1,10 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 from partial_tagger.data import Span, TokenizedText
 from partial_tagger.data.batch.text import (
     BaseTokenizer,
     TextBatch,
-    Texts,
     TransformerTokenizer,
 )
 from transformers import AutoTokenizer
@@ -31,7 +30,7 @@ class BertJapaneseTokenizer(BaseTokenizer):
         }
         self.__tokenizer_args["return_offsets_mapping"] = True
 
-    def __call__(self, texts: Texts) -> TextBatch:
+    def __call__(self, texts: Tuple[str]) -> TextBatch:
         batch_encoding = self.__tokenizer(texts, **self.__tokenizer_args)
 
         pad_token_id = self.__tokenizer.pad_token_id
