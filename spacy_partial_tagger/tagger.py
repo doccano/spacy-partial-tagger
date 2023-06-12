@@ -3,7 +3,6 @@ from typing import Any, Callable, List, Optional, Tuple, cast
 
 from partial_tagger.data import LabelSet
 from partial_tagger.data.batch.text import BaseTokenizer
-from partial_tagger.utils import create_tagger
 from spacy.tokens import Doc
 from spacy.util import registry
 from thinc.api import Model, get_torch_default_device, torch2xp, xp2torch
@@ -12,6 +11,7 @@ from thinc.types import ArgsKwargs, Floats4d, Ints2d
 from thinc.util import convert_recursive, is_torch_array, is_xp_array
 
 from .tokenizer import get_tokenizer
+from .util import create_tagger
 
 
 @registry.architectures.register("spacy-partial-tagger.PartialTagger.v1")
@@ -51,9 +51,10 @@ def forward(
         doc.user_data["tokenized_text"] = text
 
     device = get_torch_default_device()
+    text_batch.to(device)
 
     (log_potentials, tag_indices), backward = model.layers[0](
-        [text_batch.get_tagger_inputs(device), text_batch.get_mask(device)],
+        [text_batch.tagger_inputs, text_batch.mask],
         is_train,
     )
 
