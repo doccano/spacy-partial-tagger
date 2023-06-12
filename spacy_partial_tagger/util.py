@@ -1,13 +1,7 @@
 from typing import List, Tuple
 
-import catalogue
 import spacy_alignments as tokenizations
-from spacy.util import registry
 from transformers import PreTrainedTokenizer
-
-registry.label_indexers = catalogue.create(  # type:ignore
-    "spacy", "label_indexers", entry_points=True
-)
 
 
 def get_alignments(
