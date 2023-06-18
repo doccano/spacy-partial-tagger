@@ -5,7 +5,7 @@ import torch
 from partial_tagger.data import CharBasedTags, LabelSet
 from partial_tagger.data.batch.tag import TagsBatch
 from partial_tagger.data.batch.text import create_token_based_tags
-from partial_tagger.training import expected_entity_ratio_loss
+from partial_tagger.training import compute_partially_supervised_loss
 from partial_tagger.utils import create_tag
 from spacy import util
 from spacy.errors import Errors
@@ -139,7 +139,7 @@ class PartialEntityRecognizer(TrainablePipe):
             device=scores_pt.device,
         )
 
-        loss = expected_entity_ratio_loss(
+        loss = compute_partially_supervised_loss(
             scores_pt, tag_bitmap, mask, self.label_set.get_outside_index()
         )
 
