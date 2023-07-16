@@ -51,7 +51,6 @@ class PartialEntityRecognizer(TrainablePipe):
         docs: List[Doc],
         tag_indices: Floats2d,
     ) -> None:
-
         for doc, indices in zip(docs, tag_indices.tolist()):
             indices = [index for index in indices if index != self.padding_index]
             alignment = doc.user_data["alignment"]
@@ -157,7 +156,6 @@ class PartialEntityRecognizer(TrainablePipe):
     def from_bytes(
         self, bytes_data: bytes, *, exclude: tuple = ()
     ) -> "PartialEntityRecognizer":
-
         self._validate_serialization_attrs()
 
         def load_model(b: bytes) -> None:

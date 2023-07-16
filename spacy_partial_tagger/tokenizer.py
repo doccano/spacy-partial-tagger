@@ -20,7 +20,6 @@ class BertJapaneseTokenizer(BaseTokenizer):
         tokenizer: _BertJapaneseTokenizer,
         tokenizer_args: Optional[dict] = None,
     ):
-
         self.__tokenizer = tokenizer
 
         self.__tokenizer_args = tokenizer_args or {
