@@ -160,3 +160,6 @@ cython_debug/
 
 .tool-versions
 poetry.lock
+.pdm-python
+pdm.toml
+pdm.lock

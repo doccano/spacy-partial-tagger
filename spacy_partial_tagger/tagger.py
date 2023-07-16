@@ -42,7 +42,6 @@ def forward(
     X: List[Doc],
     is_train: bool,
 ) -> Tuple[Tuple[Floats4d, Ints2d], Callable]:
-
     tokenizer: BaseTokenizer = model.attrs["tokenizer"]
 
     text_batch = tokenizer(tuple(doc.text for doc in X))

@@ -19,19 +19,19 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install -U pip
-        pip install -r requirements.txt
-    - name: Lint with flake8
+        python -m pip install -e ".[dev]"
+    - name: Lint with ruff
       run: |
-        flake8
+        ruff check spacy_partial_tagger
+        ruff check tests
     - name: Lint with black
       run: |
-        black . --check
-    - name: Lint with isort
-      run: |
-        isort -c .
+        black . --check spacy_partial_tagger
+        black . --check tests
     - name: Lint with mypy
       run: |
         mypy spacy_partial_tagger
+        mypy tests
     - name: Run tests
       run: |
         pytest --cov=spacy_partial_tagger --cov-report=term-missing

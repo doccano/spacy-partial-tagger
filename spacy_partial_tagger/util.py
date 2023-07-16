@@ -30,7 +30,7 @@ def get_alignments(
     tokens = tokenizer.word_tokenizer.tokenize(
         text, never_split=tokenizer.all_special_tokens
     )
-    _, y2x = tokenizations.get_alignments(text, tokens)
+    _, y2x = tokenizations.get_alignments(list(text), tokens)
     token2char = {i: (x[0], x[-1] + 1) for i, x in enumerate(y2x)}
 
     pieces = [

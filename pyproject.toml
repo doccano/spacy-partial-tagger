@@ -1,58 +1,59 @@
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "spacy-partial-tagger"
-requires-python = ">=3.8"
-
-[tool.poetry]
-name = "spacy-partial-tagger"
-version = "0.15.2"
 description = "Sequence Tagger for Partially Annotated Dataset in spaCy"
-authors = ["yasufumi <yasufumi.taniguchi@gmail.com>"]
-license = "MIT"
-readme = "README.md"
-repository = "https://github.com/tech-sketch/spacy-partial-tagger"
+requires-python = ">=3.8,<4.0"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {file = "LICENSE"}
+authors = [
+    {name = "Yasufumi Taniguchi", email = "yasufumi.taniguchi@gmail.com"},
+]
 classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9"
 ]
+dependencies = [
+    "thinc<9.0.0,>=8.0.15",
+    "transformers[ja]<5.0.0,>=4.25.1",
+    "torch<3.0.0,>=2.0.1",
+    "spacy[transformers]<4.0.0,>=3.3.1",
+    "spacy-alignments<1.0.0,>=0.8.5",
+    "pytorch-partial-tagger<1.0.0,>=0.1.12",
+]
+dynamic = ["version"]
 
-[tool.poetry.dependencies]
-python = "^3.8"
-thinc = "^8.0.15"
-transformers = {extras = ["ja"], version = "^4.25.1"}
-torch = "^2.0.1"
-spacy = {extras = ["transformers"], version = "^3.3.1"}
-spacy-alignments = "^0.8.5"
-pytorch-partial-tagger = "^0.1.12"
+[project.urls]
+Repository = "https://github.com/doccano/spacy-partial-tagger"
 
-[tool.poetry.group.dev.dependencies]
-mypy = "^1.3.0"
-black = "^22.3.0"
-pytest = "^7.1.1"
-isort = "^5.10.1"
-flake8 = "^4.0.1"
-pytest-cov = "^3.0.0"
-ruff = "^0.0.270"
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.3.1",
+    "black>=23.3.0",
+    "pytest>=7.1.1",
+    "isort>=5.10.1",
+    "flake8>=4.0.1",
+    "pytest-cov>=3.0.0",
+    "ruff>=0.0.270",
+]
 
-[tool.poetry.plugins.spacy_factories]
+[project.entry-points]
+[project.entry-points.spacy_factories]
 partial_ner = "spacy_partial_tagger.pipeline:make_partial_ner"
 
-[tool.poetry.plugins.spacy_architectures]
+[project.entry-points.spacy_architectures]
 "spacy-partial-tagger.PartialTagger.v1" = "spacy_partial_tagger.tagger:build_partial_tagger_v1"
+
+[tool.hatch.version]
+path = "spacy_partial_tagger/__about__.py"
 
 [tool.mypy]
 ignore_missing_imports = true
 disallow_untyped_defs = true
 show_error_codes = true
-
-[tool.isort]
-profile = "black"
-include_trailing_comma = true
-multi_line_output = 3
 
 [tool.black]
 exclude = '''
