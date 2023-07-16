@@ -47,8 +47,8 @@ def forward(
 
     text_batch = tokenizer(tuple(doc.text for doc in X))
 
-    for doc, text in zip(X, text_batch.tokenized_texts):
-        doc.user_data["tokenized_text"] = text
+    for doc, alignment in zip(X, text_batch.alignments):
+        doc.user_data["alignment"] = alignment
 
     device = get_torch_default_device()
     text_batch.to(device)
