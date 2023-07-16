@@ -55,11 +55,6 @@ ignore_missing_imports = true
 disallow_untyped_defs = true
 show_error_codes = true
 
-[tool.isort]
-profile = "black"
-include_trailing_comma = true
-multi_line_output = 3
-
 [tool.black]
 exclude = '''
 /(
