@@ -2,9 +2,8 @@ from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple, cast
 
 import srsly
 import torch
-from partial_tagger.data import CharBasedTags, LabelSet
+from partial_tagger.data import LabelSet
 from partial_tagger.data.batch.tag import TagsBatch
-from partial_tagger.data.batch.text import create_token_based_tags
 from partial_tagger.training import compute_partially_supervised_loss
 from partial_tagger.utils import create_tag
 from spacy import util
@@ -52,15 +51,15 @@ class PartialEntityRecognizer(TrainablePipe):
         docs: List[Doc],
         tag_indices: Floats2d,
     ) -> None:
-        tokenized_texts = [doc.user_data["tokenized_text"] for doc in docs]
 
-        tags_batch = create_token_based_tags(
-            tokenized_texts, tag_indices, self.label_set, self.padding_index
-        )
-
-        for doc, tags in zip(docs, tags_batch):
+        for doc, indices in zip(docs, tag_indices.tolist()):
+            indices = [index for index in indices if index != self.padding_index]
+            alignment = doc.user_data["alignment"]
             ents = []
-            for tag in tags:
+            for tag in alignment.create_char_based_tags(
+                tag_indices=indices,
+                label_set=self.label_set,
+            ):
                 span = doc.char_span(tag.start, tag.start + tag.length, tag.label)
                 if span:
                     ents.append(span)
@@ -114,24 +113,26 @@ class PartialEntityRecognizer(TrainablePipe):
     ) -> Tuple[float, Floats4d]:
         scores_pt = xp2torch(scores, requires_grad=True)
 
-        token_based_tags = []
+        char_based_tags = []
+        alignments = []
         lengths = []
         for example in examples:
             tags = tuple(
                 create_tag(ent.start_char, len(ent.text), ent.label_)
                 for ent in example.y.ents
             )
-            tokenized_text = example.x.user_data["tokenized_text"]
-            token_based_tags.append(
-                CharBasedTags(tags, example.x.text).convert_to_token_based(
-                    tokenized_text
-                )
-            )
-            lengths.append(tokenized_text.num_tokens)
+            char_based_tags.append(tags)
 
-        tags_batch = TagsBatch(tuple(token_based_tags), self.label_set)
+            alignment = example.x.user_data["alignment"]
+            lengths.append(alignment.num_tokens)
+            alignments.append(alignment)
+
+        tags_batch = TagsBatch(
+            tags_batch=tuple(char_based_tags),
+            alignments=alignments,
+        )
         tags_batch.to(scores_pt.device)
-        tag_bitmap = tags_batch.get_tag_bitmap()
+        tag_bitmap = tags_batch.get_tag_bitmap(self.label_set)
 
         max_length = max(lengths)
         mask = torch.tensor(
