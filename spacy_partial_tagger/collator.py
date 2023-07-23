@@ -3,9 +3,7 @@ from typing import Optional, Tuple
 from partial_tagger.data import Alignment, Alignments, Span
 from partial_tagger.data.collators import BaseCollator, Batch, TransformerCollator
 from transformers import AutoTokenizer
-from transformers.models.bert_japanese import (
-    BertJapaneseTokenizer as _BertJapaneseTokenizer,
-)
+from transformers.models.bert_japanese import BertJapaneseTokenizer
 
 from .util import get_alignments
 
@@ -13,7 +11,7 @@ from .util import get_alignments
 class BertJapaneseCollator(BaseCollator):
     def __init__(
         self,
-        tokenizer: _BertJapaneseTokenizer,
+        tokenizer: BertJapaneseTokenizer,
         tokenizer_args: Optional[dict] = None,
     ):
         self.__tokenizer = tokenizer
@@ -59,7 +57,7 @@ def get_collator(
     transformer_model_name: str, tokenizer_args: Optional[dict] = None
 ) -> BaseCollator:
     tokenizer = AutoTokenizer.from_pretrained(transformer_model_name)
-    if isinstance(tokenizer, _BertJapaneseTokenizer):
+    if isinstance(tokenizer, BertJapaneseTokenizer):
         return BertJapaneseCollator(tokenizer, tokenizer_args)
     else:
         return TransformerCollator(tokenizer, tokenizer_args)
