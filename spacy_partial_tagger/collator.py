@@ -1,11 +1,7 @@
 from typing import Optional, Tuple
 
-from partial_tagger.data import Alignment, Span
-from partial_tagger.data.batch.text import (
-    BaseTokenizer,
-    TextBatch,
-    TransformerTokenizer,
-)
+from partial_tagger.data import Alignment, Alignments, Span
+from partial_tagger.data.collators import BaseCollator, Batch, TransformerCollator
 from transformers import AutoTokenizer
 from transformers.models.bert_japanese import (
     BertJapaneseTokenizer as _BertJapaneseTokenizer,
@@ -14,7 +10,7 @@ from transformers.models.bert_japanese import (
 from .util import get_alignments
 
 
-class BertJapaneseTokenizer(BaseTokenizer):
+class BertJapaneseCollator(BaseCollator):
     def __init__(
         self,
         tokenizer: _BertJapaneseTokenizer,
@@ -29,7 +25,7 @@ class BertJapaneseTokenizer(BaseTokenizer):
         }
         self.__tokenizer_args["return_offsets_mapping"] = True
 
-    def __call__(self, texts: Tuple[str]) -> TextBatch:
+    def __call__(self, texts: Tuple[str]) -> Tuple[Batch, Alignments]:
         batch_encoding = self.__tokenizer(texts, **self.__tokenizer_args)
 
         pad_token_id = self.__tokenizer.pad_token_id
@@ -54,16 +50,16 @@ class BertJapaneseTokenizer(BaseTokenizer):
 
             alignments.append(Alignment(text, char_spans, tuple(token_indices)))
 
-        return TextBatch(
-            tagger_inputs=batch_encoding, mask=mask, alignments=tuple(alignments)
+        return Batch(tagger_inputs=batch_encoding, mask=mask), Alignments(
+            tuple(alignments)
         )
 
 
-def get_tokenizer(
+def get_collator(
     transformer_model_name: str, tokenizer_args: Optional[dict] = None
-) -> BaseTokenizer:
+) -> BaseCollator:
     tokenizer = AutoTokenizer.from_pretrained(transformer_model_name)
     if isinstance(tokenizer, _BertJapaneseTokenizer):
-        return BertJapaneseTokenizer(tokenizer, tokenizer_args)
+        return BertJapaneseCollator(tokenizer, tokenizer_args)
     else:
-        return TransformerTokenizer(tokenizer, tokenizer_args)
+        return TransformerCollator(tokenizer, tokenizer_args)

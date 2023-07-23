@@ -2,7 +2,6 @@ from functools import partial
 from typing import Any, Callable, List, Optional, Tuple, cast
 
 from partial_tagger.data import LabelSet
-from partial_tagger.data.batch.text import BaseTokenizer
 from spacy.tokens import Doc
 from spacy.util import registry
 from thinc.api import Model, get_torch_default_device, torch2xp, xp2torch
@@ -10,7 +9,8 @@ from thinc.shims import PyTorchGradScaler, PyTorchShim
 from thinc.types import ArgsKwargs, Floats4d, Ints2d
 from thinc.util import convert_recursive, is_torch_array, is_xp_array
 
-from .tokenizer import get_tokenizer
+from spacy_partial_tagger.collator import get_collator
+
 from .util import create_tagger
 
 
@@ -42,19 +42,17 @@ def forward(
     X: List[Doc],
     is_train: bool,
 ) -> Tuple[Tuple[Floats4d, Ints2d], Callable]:
-    tokenizer: BaseTokenizer = model.attrs["tokenizer"]
+    collator = model.attrs["collator"]
+    batch, alignments = collator(tuple(doc.text for doc in X))
 
-    text_batch = tokenizer(tuple(doc.text for doc in X))
-
-    for doc, alignment in zip(X, text_batch.alignments):
+    for doc, alignment in zip(X, alignments.alignments):
         doc.user_data["alignment"] = alignment
 
     device = get_torch_default_device()
-    text_batch.to(device)
+    batch = batch.to(device)
 
     (log_potentials, tag_indices), backward = model.layers[0](
-        [text_batch.tagger_inputs, text_batch.mask],
-        is_train,
+        [batch.tagger_inputs, batch.mask], is_train
     )
 
     return (log_potentials, tag_indices), backward
@@ -74,7 +72,7 @@ def init(
     mixed_precision = model.attrs["mixed_precision"]
     grad_scaler = model.attrs["grad_scaler"]
 
-    model.attrs["tokenizer"] = get_tokenizer(transformer_model_name, tokenizer_args)
+    model.attrs["collator"] = get_collator(transformer_model_name, tokenizer_args)
 
     tagger = create_tagger(transformer_model_name, Y, padding_index)
     PyTorchWrapper = registry.get("layers", "PyTorchWrapper.v2")
