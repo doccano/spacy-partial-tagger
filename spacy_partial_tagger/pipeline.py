@@ -2,8 +2,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple, cast
 
 import srsly
 import torch
-from partial_tagger.data import LabelSet
-from partial_tagger.data.batch.tag import TagsBatch
+from partial_tagger.data import Alignments, LabelSet
 from partial_tagger.training import compute_partially_supervised_loss
 from partial_tagger.utils import create_tag
 from spacy import util
@@ -51,14 +50,16 @@ class PartialEntityRecognizer(TrainablePipe):
         docs: List[Doc],
         tag_indices: Floats2d,
     ) -> None:
-        for doc, indices in zip(docs, tag_indices.tolist()):
-            indices = [index for index in indices if index != self.padding_index]
-            alignment = doc.user_data["alignment"]
+        alignments = Alignments(tuple(doc.user_data["alignment"] for doc in docs))
+        tags_batch = alignments.create_char_based_tags(
+            tag_indices.tolist(),
+            label_set=self.label_set,
+            padding_index=self.padding_index,
+        )
+
+        for doc, tags in zip(docs, tags_batch):
             ents = []
-            for tag in alignment.create_char_based_tags(
-                tag_indices=indices,
-                label_set=self.label_set,
-            ):
+            for tag in tags:
                 span = doc.char_span(tag.start, tag.start + tag.length, tag.label)
                 if span:
                     ents.append(span)
@@ -113,7 +114,7 @@ class PartialEntityRecognizer(TrainablePipe):
         scores_pt = xp2torch(scores, requires_grad=True)
 
         char_based_tags = []
-        alignments = []
+        temp = []
         lengths = []
         for example in examples:
             tags = tuple(
@@ -124,14 +125,13 @@ class PartialEntityRecognizer(TrainablePipe):
 
             alignment = example.x.user_data["alignment"]
             lengths.append(alignment.num_tokens)
-            alignments.append(alignment)
+            temp.append(alignment)
 
-        tags_batch = TagsBatch(
-            tags_batch=tuple(char_based_tags),
-            alignments=alignments,
+        alignments = Alignments(tuple(temp))
+        tag_bitmap = torch.tensor(
+            alignments.get_tag_bitmap(char_based_tags, self.label_set),
+            device=scores_pt.device,
         )
-        tags_batch.to(scores_pt.device)
-        tag_bitmap = tags_batch.get_tag_bitmap(self.label_set)
 
         max_length = max(lengths)
         mask = torch.tensor(
