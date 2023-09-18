@@ -1,7 +1,7 @@
 from functools import partial
 from typing import Any, Callable, List, Optional, Tuple, cast
 
-from partial_tagger.data import LabelSet
+from sequence_label import LabelSet
 from spacy.tokens import Doc
 from spacy.util import registry
 from thinc.api import Model, get_torch_default_device, torch2xp, xp2torch
@@ -45,7 +45,7 @@ def forward(
     collator = model.attrs["collator"]
     batch, alignments = collator(tuple(doc.text for doc in X))
 
-    for doc, alignment in zip(X, alignments.alignments):
+    for doc, alignment in zip(X, alignments):
         doc.user_data["alignment"] = alignment
 
     device = get_torch_default_device()
