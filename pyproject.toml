@@ -90,7 +90,4 @@ max-complexity = 18
 testpaths = [
     "tests",
 ]
-addopts = "--strict-markers -m 'not local'"
-markers = [
-    "local"
-]
+addopts = "--cov=spacy_partial_tagger --cov-report=term-missing -vv"

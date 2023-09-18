@@ -34,4 +34,4 @@ jobs:
         mypy tests
     - name: Run tests
       run: |
-        pytest --cov=spacy_partial_tagger --cov-report=term-missing
+        pytest
