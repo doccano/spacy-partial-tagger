@@ -1,10 +1,9 @@
-from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple, cast
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, cast
 
 import srsly
 import torch
-from partial_tagger.data import Alignments, LabelSet
-from partial_tagger.training import compute_partially_supervised_loss
-from partial_tagger.utils import create_tag
+from partial_tagger.training import compute_partially_supervised_loss, create_tag_bitmap
+from sequence_label import LabelSet, SequenceLabel
 from spacy import util
 from spacy.errors import Errors
 from spacy.language import Language
@@ -39,7 +38,9 @@ class PartialEntityRecognizer(TrainablePipe):
 
     @property
     def label_set(self) -> LabelSet:
-        return LabelSet(set(self.cfg["labels"]))
+        return LabelSet(
+            labels=set(self.cfg["labels"]), padding_index=self.padding_index
+        )
 
     def predict(self, docs: List[Doc]) -> Floats2d:
         (_, tag_indices) = self.model.predict(docs)
@@ -50,16 +51,14 @@ class PartialEntityRecognizer(TrainablePipe):
         docs: List[Doc],
         tag_indices: Floats2d,
     ) -> None:
-        alignments = Alignments(tuple(doc.user_data["alignment"] for doc in docs))
-        tags_batch = alignments.create_char_based_tags(
-            tag_indices.tolist(),
-            label_set=self.label_set,
-            padding_index=self.padding_index,
+        labels = self.label_set.decode(
+            tag_indices=tag_indices.tolist(),
+            alignments=tuple(doc.user_data["alignment"] for doc in docs),
         )
 
-        for doc, tags in zip(docs, tags_batch):
+        for doc, label in zip(docs, labels):
             ents = []
-            for tag in tags:
+            for tag in label.tags:
                 span = doc.char_span(tag.start, tag.start + tag.length, tag.label)
                 if span:
                     ents.append(span)
@@ -89,19 +88,17 @@ class PartialEntityRecognizer(TrainablePipe):
         losses[self.name] += loss
         return losses
 
-    def initialize(
-        self, get_examples: Callable, *, nlp: Language, labels: Optional[dict] = None
-    ) -> None:
+    def initialize(self, get_examples: Callable, *, nlp: Language) -> None:
         X_small: List[Doc] = []
-        label: Set[str] = set()
+        labels: List[str] = []
         for example in get_examples():
             if len(X_small) < 10:
                 X_small.append(example.x)
             for entity in example.y.ents:
-                if entity.label_ not in label:
-                    label.add(entity.label_)
+                if entity.label_ not in labels:
+                    labels.append(entity.label_)
 
-        self.cfg["labels"] = list(label)
+        self.cfg["labels"] = labels
 
         self.model.initialize(
             X=X_small,
@@ -113,23 +110,32 @@ class PartialEntityRecognizer(TrainablePipe):
     ) -> Tuple[float, Floats4d]:
         scores_pt = xp2torch(scores, requires_grad=True)
 
-        char_based_tags = []
-        temp = []
+        labels = []
+        alignments = []
         lengths = []
         for example in examples:
-            tags = tuple(
-                create_tag(ent.start_char, len(ent.text), ent.label_)
-                for ent in example.y.ents
+            labels.append(
+                SequenceLabel.from_dict(
+                    tags=[
+                        {
+                            "start": ent.start_char,
+                            "end": ent.end_char,
+                            "label": ent.label_,
+                        }
+                        for ent in example.y.ents
+                    ],
+                    size=len(example.y.text),
+                )
             )
-            char_based_tags.append(tags)
 
             alignment = example.x.user_data["alignment"]
-            lengths.append(alignment.num_tokens)
-            temp.append(alignment)
+            alignments.append(alignment)
+            lengths.append(alignment.target_size)
 
-        alignments = Alignments(tuple(temp))
-        tag_bitmap = torch.tensor(
-            alignments.get_tag_bitmap(char_based_tags, self.label_set),
+        tag_bitmap = create_tag_bitmap(
+            label_set=self.label_set,
+            labels=tuple(labels),
+            alignments=tuple(alignments),
             device=scores_pt.device,
         )
 
@@ -140,7 +146,7 @@ class PartialEntityRecognizer(TrainablePipe):
         )
 
         loss = compute_partially_supervised_loss(
-            scores_pt, tag_bitmap, mask, self.label_set.get_outside_index()
+            scores_pt, tag_bitmap, mask, self.label_set.outside_index
         )
 
         (grad,) = torch.autograd.grad(loss, scores_pt)

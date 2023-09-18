@@ -1,7 +1,7 @@
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
-from partial_tagger.data import Alignment, Alignments, Span
 from partial_tagger.data.collators import BaseCollator, Batch, TransformerCollator
+from sequence_label.core import LabelAlignment, Span
 from transformers import AutoTokenizer
 from transformers.models.bert_japanese import BertJapaneseTokenizer
 
@@ -23,34 +23,32 @@ class BertJapaneseCollator(BaseCollator):
         }
         self.__tokenizer_args["return_offsets_mapping"] = True
 
-    def __call__(self, texts: Tuple[str]) -> Tuple[Batch, Alignments]:
+    def __call__(
+        self, texts: Tuple[str, ...]
+    ) -> Tuple[Batch, Tuple[LabelAlignment, ...]]:
         batch_encoding = self.__tokenizer(texts, **self.__tokenizer_args)
 
         pad_token_id = self.__tokenizer.pad_token_id
         mask = batch_encoding.input_ids != pad_token_id
-        tokenized_text_lengths = mask.sum(dim=1)
 
         alignments = []
-        for _tokenized_text_length, input_ids, text in zip(
-            tokenized_text_lengths, batch_encoding.input_ids, texts
-        ):
+        for input_ids, text in zip(batch_encoding.input_ids, texts):
             char_spans = tuple(
-                Span(span[0], len(span)) if span else None
+                Span(start=span[0], length=len(span)) if span else None
                 for span in get_alignments(self.__tokenizer, text, input_ids.tolist())
             )
-            token_indices = [-1] * len(text)
+            token_spans: List[Optional[Span]] = [None] * len(text)
             for token_index, char_span in enumerate(char_spans):
                 if char_span is None:
                     continue
                 start = char_span.start
                 end = char_span.start + char_span.length
-                token_indices[start:end] = [token_index] * char_span.length
+                for i in range(start, end):
+                    token_spans[i] = Span(start=token_index, length=1)
 
-            alignments.append(Alignment(text, char_spans, tuple(token_indices)))
+            alignments.append(LabelAlignment(char_spans, tuple(token_spans)))
 
-        return Batch(tagger_inputs=batch_encoding, mask=mask), Alignments(
-            tuple(alignments)
-        )
+        return Batch(tagger_inputs=batch_encoding, mask=mask), tuple(alignments)
 
 
 def get_collator(

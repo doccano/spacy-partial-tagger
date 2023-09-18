@@ -1,10 +1,10 @@
 from typing import List, Tuple
 
 import spacy_alignments as tokenizations
-from partial_tagger.data import LabelSet
 from partial_tagger.decoders.viterbi import Constrainer, ViterbiDecoder
 from partial_tagger.encoders.transformer import TransformerModelEncoderFactory
 from partial_tagger.tagger import SequenceTagger
+from sequence_label import LabelSet
 from transformers import PreTrainedTokenizer
 
 
@@ -16,9 +16,9 @@ def create_tagger(
         ViterbiDecoder(
             padding_index,
             Constrainer(
-                label_set.get_start_states(),
-                label_set.get_end_states(),
-                label_set.get_transitions(),
+                label_set.start_states,
+                label_set.end_states,
+                label_set.transitions,
             ),
         ),
     )
