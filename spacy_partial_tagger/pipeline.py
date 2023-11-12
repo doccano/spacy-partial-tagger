@@ -2,7 +2,8 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, cast
 
 import srsly
 import torch
-from partial_tagger.training import compute_partially_supervised_loss, create_tag_bitmap
+from partial_tagger.crf import functional as F
+from partial_tagger.training import create_tag_bitmap
 from sequence_label import LabelSet, SequenceLabel
 from spacy import util
 from spacy.errors import Errors
@@ -16,6 +17,40 @@ from thinc.config import Config
 from thinc.model import Model
 from thinc.optimizers import Optimizer
 from thinc.types import Floats2d, Floats4d
+
+
+def compute_partially_supervised_loss(
+    log_potentials: torch.Tensor,
+    tag_bitmap: torch.Tensor,
+    mask: torch.Tensor,
+    outside_index: int,
+    target_entity_ratio: float = 0.15,
+    entity_ratio_margin: float = 0.05,
+    balancing_coefficient: int = 10,
+) -> torch.Tensor:
+    with torch.enable_grad():
+        # log partition
+        log_Z = F.forward_algorithm(log_potentials)
+
+        # marginal probabilities
+        p = torch.autograd.grad(log_Z.sum(), log_potentials, create_graph=True)[0].sum(
+            dim=-1
+        )
+    p *= mask[..., None]
+
+    expected_entity_count = (
+        p[:, :, :outside_index].sum() + p[:, :, outside_index + 1 :].sum()
+    )
+    expected_entity_ratio = expected_entity_count / p.sum()
+    expected_entity_ratio_loss = torch.clamp(
+        (expected_entity_ratio - target_entity_ratio).abs() - entity_ratio_margin,
+        min=0,
+    )
+
+    score = F.multitag_sequence_score(log_potentials, tag_bitmap, mask)
+    supervised_loss = (log_Z - score).mean()
+
+    return supervised_loss + balancing_coefficient * expected_entity_ratio_loss
 
 
 class PartialEntityRecognizer(TrainablePipe):

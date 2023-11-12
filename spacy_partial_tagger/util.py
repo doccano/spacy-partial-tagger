@@ -1,11 +1,69 @@
-from typing import List, Tuple
+from typing import Dict, List, Tuple, cast
 
 import spacy_alignments as tokenizations
-from partial_tagger.decoders.viterbi import Constrainer, ViterbiDecoder
+import torch
+from partial_tagger.crf import functional as F
+from partial_tagger.crf.nn import CRF
+from partial_tagger.encoders.base import BaseEncoder
 from partial_tagger.encoders.transformer import TransformerModelEncoderFactory
-from partial_tagger.tagger import SequenceTagger
 from sequence_label import LabelSet
+from torch import nn
 from transformers import PreTrainedTokenizer
+
+
+class SequenceTagger(nn.Module):
+    def __init__(
+        self,
+        encoder: BaseEncoder,
+        padding_index: int,
+        start_states: Tuple[bool, ...],
+        end_states: Tuple[bool, ...],
+        transitions: Tuple[Tuple[bool, ...], ...],
+    ):
+        super().__init__()
+
+        self.encoder = encoder
+        self.crf = CRF(encoder.get_hidden_size())
+        self.start_constraints = nn.Parameter(
+            torch.tensor(start_states), requires_grad=False
+        )
+        self.end_constraints = nn.Parameter(
+            torch.tensor(end_states), requires_grad=False
+        )
+        self.transition_constraints = nn.Parameter(
+            torch.tensor(transitions), requires_grad=False
+        )
+        self.padding_index = padding_index
+
+    def __constrain(
+        self, log_potentials: torch.Tensor, mask: torch.Tensor
+    ) -> torch.Tensor:
+        return F.constrain_log_potentials(
+            log_potentials,
+            mask,
+            self.start_constraints,
+            self.end_constraints,
+            self.transition_constraints,
+        )
+
+    def forward(
+        self, inputs: Dict[str, torch.Tensor], mask: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        log_potentials = self.crf(self.encoder(inputs), mask)
+
+        contrained = self.__constrain(log_potentials, mask)
+
+        contrained.requires_grad_()
+
+        with torch.enable_grad():
+            _, tag_indices = F.decode(contrained)
+
+        return log_potentials, tag_indices * mask + self.padding_index * (~mask)
+
+    def predict(
+        self, inputs: Dict[str, torch.Tensor], mask: torch.Tensor
+    ) -> torch.Tensor:
+        return cast(torch.Tensor, self(inputs, mask)[1])
 
 
 def create_tagger(
@@ -13,14 +71,10 @@ def create_tagger(
 ) -> SequenceTagger:
     return SequenceTagger(
         TransformerModelEncoderFactory(model_name).create(label_set),
-        ViterbiDecoder(
-            padding_index,
-            Constrainer(
-                label_set.start_states,
-                label_set.end_states,
-                label_set.transitions,
-            ),
-        ),
+        padding_index,
+        label_set.start_states,
+        label_set.end_states,
+        label_set.transitions,
     )
 
 
